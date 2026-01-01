@@ -1,23 +1,24 @@
 // Flash9 - static version (GitHub Pages) with:
-// - No-header CSV support (4 columns in fixed order)
-// - Group filter
+// - No-header CSV support (4 columns fixed order)
+// - Hierarchical group tokens (space-separated tokens, ":" for nesting)
+//   Example: music:instr:piano  uni:univie:wisskomm
+// - Tree group selector UI (select parent includes all descendants)
 // - Modes (image+name / image-only / forgotten-only)
 // - Swipe controls
 // - Stats + streak (session + overall) stored in localStorage
 
 const LS = {
   csvUrl: "flash9_csv_url",
-  selectedGroups: "flash9_selected_groups",
-  forgotten: "flash9_forgotten",          // map name->true
+  selectedGroups: "flash9_selected_groups", // null = all, [] = none, ["music", "uni:univie"] = selected nodes
+  forgotten: "flash9_forgotten",            // map name->true
   mode: "flash9_mode",
   shuffle: "flash9_shuffle",
-  stats: "flash9_stats_v1"               // persistent stats
+  stats: "flash9_stats_v1"
 };
 
 const el = (id) => document.getElementById(id);
 
-// If these elements exist in your HTML, we populate them.
-// If they don't, everything still works (stats panel just won't render).
+// Optional (stats panel). If missing in HTML, app still works.
 const optionalEls = {
   statsPanel: el("statsPanel"),
   statSessionKnown: el("statSessionKnown"),
@@ -62,7 +63,10 @@ let activeCards = [];
 let currentIndex = 0;
 let revealed = true;
 
-// ---------- helpers ----------
+// Tree open-state persisted in-memory (per page load). Nice UX.
+let openNodeIds = new Set();
+
+// ---------- small helpers ----------
 function getQueryParam(name) {
   const url = new URL(window.location.href);
   return url.searchParams.get(name);
@@ -86,7 +90,9 @@ function saveLS(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+// ---------- groups (tokens + hierarchy) ----------
 function splitGroups(s) {
+  // user decided: single space = separator
   if (!s) return [];
   return String(s).trim().split(/\s+/g).map(x => x.trim()).filter(Boolean);
 }
@@ -106,7 +112,7 @@ function expandGroupPrefixes(groupTokens) {
   return out;
 }
 
-
+// ---------- CSV/TSV parsing ----------
 function detectDelimiter(text) {
   const firstLine = text.split(/\r?\n/).find(l => l.trim().length > 0) || "";
   const counts = {
@@ -121,7 +127,7 @@ function detectDelimiter(text) {
 }
 
 function parseDelimited(text, delimiter) {
-  // Minimal parser with quoted-field support (sufficient for Google Sheets CSV exports)
+  // Minimal parser with quoted-field support (good enough for Google Sheets CSV exports)
   const rows = [];
   let row = [];
   let field = "";
@@ -172,10 +178,10 @@ function parseDelimited(text, delimiter) {
 
     field += c;
   }
+
   pushField();
   pushRow();
 
-  // Remove trailing completely-empty line if present
   while (rows.length && rows[rows.length - 1].every(x => String(x || "").trim() === "")) {
     rows.pop();
   }
@@ -196,7 +202,6 @@ function defaultStats() {
     overallKnown: 0,
     overallUnknown: 0,
     overallBestStreak: 0,
-    // session values are reset on load/reload
     sessionKnown: 0,
     sessionUnknown: 0,
     sessionStreak: 0
@@ -236,7 +241,6 @@ function renderStats() {
 
 function recordAnswer(known) {
   const s = getStats();
-
   if (known) {
     s.sessionKnown += 1;
     s.overallKnown += 1;
@@ -247,12 +251,11 @@ function recordAnswer(known) {
     s.overallUnknown += 1;
     s.sessionStreak = 0;
   }
-
   saveLS(LS.stats, s);
   renderStats();
 }
 
-// ---------- forgotten map ----------
+// ---------- forgotten ----------
 function getForgottenMap() {
   return loadLS(LS.forgotten, {});
 }
@@ -265,9 +268,9 @@ function setForgotten(name, value) {
   saveLS(LS.forgotten, m);
 }
 
-// ---------- group selection ----------
+// ---------- selected groups (hierarchical nodes) ----------
 function getSelectedGroups() {
-  // null means "all"
+  // null = all, [] = none, ["music", "uni:univie"] = selected nodes
   return loadLS(LS.selectedGroups, null);
 }
 
@@ -275,35 +278,63 @@ function setSelectedGroups(groupsOrNull) {
   saveLS(LS.selectedGroups, groupsOrNull);
 }
 
-function uniqueGroups(cards) {
-  const set = new Set();
-  for (const c of cards) for (const g of (c.groups || [])) set.add(g);
-  return Array.from(set).sort((a, b) => a.localeCompare(b));
+// Card matches if any selected node is among its prefixes
+function matchesSelectedGroups(card, selectedIds) {
+  if (selectedIds === null) return true;              // all
+  if (!Array.isArray(selectedIds)) return true;
+  if (selectedIds.length === 0) return false;         // none
+
+  const prefixes = card.groupPrefixes || new Set();
+  for (const sel of selectedIds) {
+    if (prefixes.has(sel)) return true;
+  }
+  return false;
 }
 
-function getSelectedGroups() {
-  // Now: array of selected node IDs, or null = none selected (we'll treat null as "all")
-  return loadLS(LS.selectedGroups, null);
+// ---------- group tree UI ----------
+function makeNode(id, label) {
+  return { id, label, children: new Map() };
 }
 
-function setSelectedGroups(groupsOrNull) {
-  saveLS(LS.selectedGroups, groupsOrNull);
+function buildGroupTree(cards) {
+  const root = makeNode("__root__", "__root__");
+
+  for (const c of cards) {
+    for (const token of (c.groups || [])) {
+      const parts = token.split(":").map(p => p.trim()).filter(Boolean);
+      if (parts.length === 0) continue;
+
+      let node = root;
+      let acc = "";
+      for (const part of parts) {
+        acc = acc ? `${acc}:${part}` : part;
+
+        if (!node.children.has(part)) {
+          node.children.set(part, makeNode(acc, part));
+        }
+        node = node.children.get(part);
+      }
+    }
+  }
+  return root;
 }
 
-function isSelected(id, selectedSet) {
-  return selectedSet.has(id);
-}
-
-function toggleSelected(id) {
+function toggleSelectedNode(nodeId) {
   const selected = getSelectedGroups();
-  const set = new Set(selected || []);
-  if (set.has(id)) set.delete(id);
-  else set.add(id);
+  const set = new Set(Array.isArray(selected) ? selected : []);
 
-  // If empty, store [] (meaning: nothing selected)
+  if (set.has(nodeId)) set.delete(nodeId);
+  else set.add(nodeId);
+
   setSelectedGroups(Array.from(set));
   renderGroupsUI();
   applyFilters();
+}
+
+function toggleOpenNode(nodeId) {
+  if (openNodeIds.has(nodeId)) openNodeIds.delete(nodeId);
+  else openNodeIds.add(nodeId);
+  renderGroupsUI();
 }
 
 function renderGroupsUI() {
@@ -311,9 +342,8 @@ function renderGroupsUI() {
 
   const tree = buildGroupTree(allCards);
   const selected = new Set(getSelectedGroups() || []);
-
   ui.groupsList.innerHTML = "";
-  ui.groupsList.style.display = "block"; // tree layout
+  ui.groupsList.style.display = "block";
 
   const renderNode = (node, depth) => {
     const row = document.createElement("div");
@@ -321,20 +351,21 @@ function renderGroupsUI() {
     row.style.paddingLeft = `${depth * 14}px`;
 
     const hasKids = node.children.size > 0;
+    const isOpen = openNodeIds.has(node.id);
 
     const twist = document.createElement("button");
     twist.className = "treeTwist";
-    twist.textContent = hasKids ? (node.open ? "▾" : "▸") : "•";
+    twist.textContent = hasKids ? (isOpen ? "▾" : "▸") : "•";
     twist.disabled = !hasKids;
-    twist.addEventListener("click", () => {
-      node.open = !node.open;
-      renderGroupsUI();
+    twist.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (hasKids) toggleOpenNode(node.id);
     });
 
     const cb = document.createElement("input");
     cb.type = "checkbox";
-    cb.checked = isSelected(node.id, selected);
-    cb.addEventListener("change", () => toggleSelected(node.id));
+    cb.checked = selected.has(node.id);
+    cb.addEventListener("change", () => toggleSelectedNode(node.id));
 
     const label = document.createElement("span");
     label.className = "treeLabel";
@@ -345,17 +376,15 @@ function renderGroupsUI() {
     row.appendChild(label);
     ui.groupsList.appendChild(row);
 
-    if (hasKids && node.open) {
-      const kids = Array.from(node.children.values()).sort((a,b)=>a.label.localeCompare(b.label));
+    if (hasKids && isOpen) {
+      const kids = Array.from(node.children.values()).sort((a, b) => a.label.localeCompare(b.label));
       for (const k of kids) renderNode(k, depth + 1);
     }
   };
 
-  // Render roots (children of __root__)
-  const roots = Array.from(tree.children.values()).sort((a,b)=>a.label.localeCompare(b.label));
+  const roots = Array.from(tree.children.values()).sort((a, b) => a.label.localeCompare(b.label));
   for (const r of roots) renderNode(r, 0);
 }
-
 
 // ---------- cards & UI ----------
 function setImage(url) {
@@ -405,14 +434,13 @@ function showCard() {
   }
 
   const c = activeCards[currentIndex % activeCards.length];
-
   ui.counter.textContent = `${(currentIndex % activeCards.length) + 1} / ${activeCards.length}`;
 
   revealed = !(ui.modeSelect && ui.modeSelect.value === "image_only");
   renderReveal(c);
 
   ui.cardInfo.textContent = c.info || "";
-  ui.cardGroups.textContent = (c.groups && c.groups.length) ? `Groups: ${c.groups.join(", ")}` : "";
+  ui.cardGroups.textContent = (c.groups && c.groups.length) ? `Groups: ${c.groups.join(" ")}` : "";
   setImage(c.image || "");
 }
 
@@ -423,17 +451,14 @@ function nextCard() {
 }
 
 function applyFilters() {
-  const selected = getSelectedGroups(); // null or array
+  const selectedIds = getSelectedGroups(); // null or array
   const mode = ui.modeSelect ? ui.modeSelect.value : "image_name";
   const forgottenMap = getForgottenMap();
 
   let filtered = allCards.filter(c => c.name);
 
-  if (selected && Array.isArray(selected) && selected.length > 0) {
-    filtered = filtered.filter(c => (c.groups || []).some(g => selected.includes(g)));
-  } else if (Array.isArray(selected) && selected.length === 0) {
-    filtered = []; // none selected
-  }
+  // hierarchical group filtering
+  filtered = filtered.filter(c => matchesSelectedGroups(c, selectedIds));
 
   if (mode === "forgotten") {
     filtered = filtered.filter(c => forgottenMap[c.name]);
@@ -457,10 +482,10 @@ function markKnown(known) {
   if (activeCards.length === 0) return;
   const c = activeCards[currentIndex % activeCards.length];
 
-  // Mirror your Streamlit idea: didn't know => add to forgotten; knew => remove from forgotten
+  // didn't know => add to forgotten; knew => remove
   setForgotten(c.name, !known);
 
-  // Stats
+  // stats/streak
   recordAnswer(known);
 
   nextCard();
@@ -473,7 +498,7 @@ function buildCardsFromText_NoHeaders(text) {
     .map(r => r.map(x => String(x ?? "").trim()))
     .filter(r => r.some(cell => cell.length > 0));
 
-  // Each row should be: [name, groups, imageUrl, info]
+  // Each row: [name, groups, imageUrl, info]
   const cards = rows.map((r) => {
     const name = (r[0] || "").trim();
     const groupsRaw = (r[1] || "").trim();
@@ -481,7 +506,7 @@ function buildCardsFromText_NoHeaders(text) {
     const info = (r[3] || "").trim();
 
     const groups = splitGroups(groupsRaw);                 // tokens (paths)
-    const groupPrefixes = expandGroupPrefixes(groups);     // includes ancestors
+    const groupPrefixes = expandGroupPrefixes(groups);     // ancestors included
 
     return { name, groups, groupPrefixes, image, info, raw: r };
   }).filter(c => c.name);
@@ -502,7 +527,6 @@ function setCsvUrl(url) {
 }
 
 function getCsvUrl() {
-  // priority: query param > localStorage > input
   const qp = getQueryParam("csv");
   if (qp) return qp;
   const saved = loadLS(LS.csvUrl, "");
@@ -523,31 +547,6 @@ function copyShareLink() {
     setStatus("Could not copy automatically. You can manually add ?csv=YOUR_URL");
   });
 }
-
-function makeNode(id, label) {
-  return { id, label, children: new Map(), open: false };
-}
-
-function buildGroupTree(cards) {
-  const root = makeNode("__root__", "__root__");
-
-  for (const c of cards) {
-    for (const token of (c.groups || [])) {
-      const parts = token.split(":").map(p => p.trim()).filter(Boolean);
-      let node = root;
-      let acc = "";
-      for (const part of parts) {
-        acc = acc ? `${acc}:${part}` : part;
-        if (!node.children.has(part)) {
-          node.children.set(part, makeNode(acc, part));
-        }
-        node = node.children.get(part);
-      }
-    }
-  }
-  return root;
-}
-
 
 // ---------- swipe support ----------
 let touchStartX = null;
@@ -571,11 +570,11 @@ function onTouchEnd(e) {
 
   if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy)) return;
 
-  if (dx > 0) markKnown(true);  // right
-  else markKnown(false);        // left
+  if (dx > 0) markKnown(true);   // swipe right
+  else markKnown(false);         // swipe left
 }
 
-// ---------- event wiring ----------
+// ---------- wiring ----------
 if (ui.btnLoad) ui.btnLoad.addEventListener("click", async () => {
   const url = ui.csvUrlInput ? ui.csvUrlInput.value.trim() : "";
   if (!url) {
@@ -589,11 +588,16 @@ if (ui.btnLoad) ui.btnLoad.addEventListener("click", async () => {
     const cards = buildCardsFromText_NoHeaders(text);
 
     allCards = cards;
+
+    // by default, open first-level roots for nicer first impression
+    openNodeIds = new Set();
+    const tree = buildGroupTree(allCards);
+    for (const n of tree.children.values()) openNodeIds.add(n.id);
+
     renderGroupsUI();
     applyFilters();
 
     setStatus(`Loaded ${allCards.length} cards.`);
-    // new “session” starts on each load
     resetSessionStats();
   } catch (err) {
     console.error(err);
@@ -614,13 +618,13 @@ if (ui.shuffleToggle) ui.shuffleToggle.addEventListener("change", () => {
 });
 
 if (ui.btnAllGroups) ui.btnAllGroups.addEventListener("click", () => {
-  setSelectedGroups(null);
+  setSelectedGroups(null); // all
   renderGroupsUI();
   applyFilters();
 });
 
 if (ui.btnNoneGroups) ui.btnNoneGroups.addEventListener("click", () => {
-  setSelectedGroups([]);
+  setSelectedGroups([]); // none
   renderGroupsUI();
   applyFilters();
 });
@@ -649,7 +653,6 @@ if (optionalEls.btnResetStats) optionalEls.btnResetStats.addEventListener("click
   setTimeout(() => setStatus(""), 1500);
 });
 
-// attach swipe listeners to card
 if (ui.card) {
   ui.card.addEventListener("touchstart", onTouchStart, { passive: true });
   ui.card.addEventListener("touchend", onTouchEnd, { passive: true });
@@ -657,7 +660,6 @@ if (ui.card) {
 
 // ---------- init ----------
 (function init() {
-  // restore UI settings
   if (ui.modeSelect) ui.modeSelect.value = loadLS(LS.mode, "image_name");
   if (ui.shuffleToggle) ui.shuffleToggle.checked = loadLS(LS.shuffle, true);
 
@@ -666,7 +668,6 @@ if (ui.card) {
   const initialUrl = getCsvUrl();
   if (initialUrl && ui.csvUrlInput) {
     ui.csvUrlInput.value = initialUrl;
-    // auto-load if provided in query param
     if (ui.btnLoad) ui.btnLoad.click();
   } else {
     if (ui.smallStatus) ui.smallStatus.textContent = "Paste a public CSV/TSV URL to begin.";
