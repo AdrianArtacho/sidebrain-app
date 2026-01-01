@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flash9</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">⚡</div>
+      <div>
+        <div class="title">Flash9</div>
+        <div class="subtitle">Flashcards from a public Sheet CSV/TSV URL</div>
+      </div>
+    </div>
+    <button id="btnReset" class="ghost">Reset progress</button>
+  </header>
+
+  <main class="container">
+    <section class="panel">
+      <h2>Data source</h2>
+
+      <div class="row">
+        <input id="csvUrlInput" class="input" type="url" placeholder="Paste a public CSV/TSV URL (Google Sheets 'output=csv'…)" />
+        <button id="btnLoad" class="primary">Load</button>
+      </div>
+
+      <div class="hint">
+        Tip: you can also open this page with <code>?csv=ENCODED_URL</code>.
+        <button id="btnCopyLink" class="ghost small">Copy link</button>
+      </div>
+
+      <div id="status" class="status"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Filters</h2>
+
+      <div class="grid2">
+        <div>
+          <label class="label">Mode</label>
+          <select id="modeSelect" class="input">
+            <option value="image_name">Image + name</option>
+            <option value="image_only">Image only (guess name)</option>
+            <option value="forgotten">Forgotten only</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="label">Shuffle</label>
+          <div class="toggleRow">
+            <input type="checkbox" id="shuffleToggle" checked />
+            <label for="shuffleToggle">Randomize order</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="groups">
+        <div class="groupsHeader">
+          <label class="label">Groups</label>
+          <div class="groupsActions">
+            <button id="btnAllGroups" class="ghost small">All</button>
+            <button id="btnNoneGroups" class="ghost small">None</button>
+          </div>
+        </div>
+        <div id="groupsList" class="groupsList"></div>
+      </div>
+    </section>
+
+    <section class="panel cardPanel">
+      <div class="cardTop">
+        <div class="counter" id="counter">—</div>
+        <div class="smallStatus" id="smallStatus">Load a sheet to begin.</div>
+      </div>
+
+      <div id="card" class="card" aria-live="polite">
+        <div class="cardInner">
+          <div class="imageWrap" id="imageWrap">
+            <img id="cardImg" alt="" />
+            <div id="imgFallback" class="imgFallback">No image</div>
+          </div>
+
+          <div class="content">
+            <div class="nameRow">
+              <div id="cardName" class="cardName">—</div>
+              <button id="btnReveal" class="ghost small">Reveal</button>
+            </div>
+            <div id="cardInfo" class="cardInfo"></div>
+            <div id="cardGroups" class="cardGroups"></div>
+          </div>
+        </div>
+
+        <div class="swipeHint">Swipe left = ❌, right = ✅</div>
+      </div>
+
+      <div class="actions">
+        <button id="btnNo" class="danger">❌ Didn’t know</button>
+        <button id="btnYes" class="success">✅ Knew it</button>
+        <button id="btnNext" class="ghost">Next</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>Local progress is stored on this device (localStorage).</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
