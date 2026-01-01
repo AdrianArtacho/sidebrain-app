@@ -88,13 +88,24 @@ function saveLS(key, value) {
 
 function splitGroups(s) {
   if (!s) return [];
-
-  return String(s)
-    .trim()
-    .split(/\s+/g)   // ONE OR MORE spaces = separator
-    .map(x => x.trim())
-    .filter(Boolean);
+  return String(s).trim().split(/\s+/g).map(x => x.trim()).filter(Boolean);
 }
+
+// Turn ["music:instr:piano", "uni:univie:wisskomm"] into a Set of all prefixes:
+// music, music:instr, music:instr:piano, uni, uni:univie, uni:univie:wisskomm
+function expandGroupPrefixes(groupTokens) {
+  const out = new Set();
+  for (const token of groupTokens || []) {
+    const parts = token.split(":").map(p => p.trim()).filter(Boolean);
+    let acc = "";
+    for (const p of parts) {
+      acc = acc ? `${acc}:${p}` : p;
+      out.add(acc);
+    }
+  }
+  return out;
+}
+
 
 function detectDelimiter(text) {
   const firstLine = text.split(/\r?\n/).find(l => l.trim().length > 0) || "";
@@ -270,47 +281,81 @@ function uniqueGroups(cards) {
   return Array.from(set).sort((a, b) => a.localeCompare(b));
 }
 
+function getSelectedGroups() {
+  // Now: array of selected node IDs, or null = none selected (we'll treat null as "all")
+  return loadLS(LS.selectedGroups, null);
+}
+
+function setSelectedGroups(groupsOrNull) {
+  saveLS(LS.selectedGroups, groupsOrNull);
+}
+
+function isSelected(id, selectedSet) {
+  return selectedSet.has(id);
+}
+
+function toggleSelected(id) {
+  const selected = getSelectedGroups();
+  const set = new Set(selected || []);
+  if (set.has(id)) set.delete(id);
+  else set.add(id);
+
+  // If empty, store [] (meaning: nothing selected)
+  setSelectedGroups(Array.from(set));
+  renderGroupsUI();
+  applyFilters();
+}
+
 function renderGroupsUI() {
   if (!ui.groupsList) return;
-  const groups = uniqueGroups(allCards);
+
+  const tree = buildGroupTree(allCards);
+  const selected = new Set(getSelectedGroups() || []);
+
   ui.groupsList.innerHTML = "";
+  ui.groupsList.style.display = "block"; // tree layout
 
-  const selected = getSelectedGroups(); // null or array
-  const selectedSet = new Set(selected || groups); // null => all selected
+  const renderNode = (node, depth) => {
+    const row = document.createElement("div");
+    row.className = "treeRow";
+    row.style.paddingLeft = `${depth * 14}px`;
 
-  for (const g of groups) {
-    const id = `g_${btoa(unescape(encodeURIComponent(g))).replace(/=+$/,"")}`;
+    const hasKids = node.children.size > 0;
 
-    const wrap = document.createElement("label");
-    wrap.className = "groupItem";
-    wrap.setAttribute("for", id);
+    const twist = document.createElement("button");
+    twist.className = "treeTwist";
+    twist.textContent = hasKids ? (node.open ? "▾" : "▸") : "•";
+    twist.disabled = !hasKids;
+    twist.addEventListener("click", () => {
+      node.open = !node.open;
+      renderGroupsUI();
+    });
 
     const cb = document.createElement("input");
     cb.type = "checkbox";
-    cb.id = id;
-    cb.checked = selectedSet.has(g);
+    cb.checked = isSelected(node.id, selected);
+    cb.addEventListener("change", () => toggleSelected(node.id));
 
-    cb.addEventListener("change", () => {
-      const currentGroups = uniqueGroups(allCards);
-      const checked = [];
-      for (const gg of currentGroups) {
-        const cbId = `g_${btoa(unescape(encodeURIComponent(gg))).replace(/=+$/,"")}`;
-        const node = document.getElementById(cbId);
-        if (node && node.checked) checked.push(gg);
-      }
-      if (checked.length === currentGroups.length) setSelectedGroups(null);
-      else setSelectedGroups(checked);
-      applyFilters();
-    });
+    const label = document.createElement("span");
+    label.className = "treeLabel";
+    label.textContent = node.label;
 
-    const span = document.createElement("span");
-    span.textContent = g;
+    row.appendChild(twist);
+    row.appendChild(cb);
+    row.appendChild(label);
+    ui.groupsList.appendChild(row);
 
-    wrap.appendChild(cb);
-    wrap.appendChild(span);
-    ui.groupsList.appendChild(wrap);
-  }
+    if (hasKids && node.open) {
+      const kids = Array.from(node.children.values()).sort((a,b)=>a.label.localeCompare(b.label));
+      for (const k of kids) renderNode(k, depth + 1);
+    }
+  };
+
+  // Render roots (children of __root__)
+  const roots = Array.from(tree.children.values()).sort((a,b)=>a.label.localeCompare(b.label));
+  for (const r of roots) renderNode(r, 0);
 }
+
 
 // ---------- cards & UI ----------
 function setImage(url) {
@@ -435,9 +480,10 @@ function buildCardsFromText_NoHeaders(text) {
     const image = (r[2] || "").trim();
     const info = (r[3] || "").trim();
 
-    const groups = splitGroups(groupsRaw);
+    const groups = splitGroups(groupsRaw);                 // tokens (paths)
+    const groupPrefixes = expandGroupPrefixes(groups);     // includes ancestors
 
-    return { name, groups, image, info, raw: r };
+    return { name, groups, groupPrefixes, image, info, raw: r };
   }).filter(c => c.name);
 
   return cards;
@@ -477,6 +523,31 @@ function copyShareLink() {
     setStatus("Could not copy automatically. You can manually add ?csv=YOUR_URL");
   });
 }
+
+function makeNode(id, label) {
+  return { id, label, children: new Map(), open: false };
+}
+
+function buildGroupTree(cards) {
+  const root = makeNode("__root__", "__root__");
+
+  for (const c of cards) {
+    for (const token of (c.groups || [])) {
+      const parts = token.split(":").map(p => p.trim()).filter(Boolean);
+      let node = root;
+      let acc = "";
+      for (const part of parts) {
+        acc = acc ? `${acc}:${part}` : part;
+        if (!node.children.has(part)) {
+          node.children.set(part, makeNode(acc, part));
+        }
+        node = node.children.get(part);
+      }
+    }
+  }
+  return root;
+}
+
 
 // ---------- swipe support ----------
 let touchStartX = null;
