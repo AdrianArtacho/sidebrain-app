@@ -70,6 +70,33 @@
       </div>
     </section>
 
+<!-- Stats panel (optional, but recommended) -->
+<section id="statsPanel" class="panel" style="margin-bottom:14px;">
+  <h2>Stats</h2>
+
+  <div class="grid2">
+    <div>
+      <div class="label">This session</div>
+      <div class="hint">
+        ✅ <b id="statSessionKnown">0</b> &nbsp; ❌ <b id="statSessionUnknown">0</b> &nbsp; 🔥 streak <b id="statSessionStreak">0</b>
+      </div>
+    </div>
+
+    <div>
+      <div class="label">Overall (this device)</div>
+      <div class="hint">
+        ✅ <b id="statOverallKnown">0</b> &nbsp; ❌ <b id="statOverallUnknown">0</b> &nbsp; 🏆 best <b id="statOverallBestStreak">0</b>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:10px;">
+    <button id="btnResetStats" class="ghost small">Reset stats</button>
+  </div>
+</section>
+
+
+    
     <section class="panel cardPanel">
       <div class="cardTop">
         <div class="counter" id="counter">—</div>
