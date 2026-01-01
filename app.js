@@ -88,21 +88,12 @@ function saveLS(key, value) {
 
 function splitGroups(s) {
   if (!s) return [];
-  const str = String(s).trim();
-  if (!str) return [];
 
-  // Recommended separators: ; , |
-  if (/[;,|]/.test(str)) {
-    return str.split(/[,;|]/g).map(x => x.trim()).filter(Boolean);
-  }
-
-  // If user uses double-space as separator, allow it:
-  if (/\s{2,}/.test(str)) {
-    return str.split(/\s{2,}/g).map(x => x.trim()).filter(Boolean);
-  }
-
-  // Safe fallback: treat as ONE group (important because group names may contain spaces like "MDW CAP")
-  return [str];
+  return String(s)
+    .trim()
+    .split(/\s+/g)   // ONE OR MORE spaces = separator
+    .map(x => x.trim())
+    .filter(Boolean);
 }
 
 function detectDelimiter(text) {
