@@ -164,3 +164,27 @@ button:active { transform: translateY(1px); }
 
 .actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 12px; }
 .footer { padding: 16px; text-align: center; font-size: 12px; color: var(--muted); }
+
+.treeRow{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:8px 10px;
+  border-radius:14px;
+  border:1px solid var(--border);
+  background: rgba(255,255,255,.04);
+  margin-bottom:8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.treeTwist{
+  width:34px;
+  padding:6px 6px;
+  border-radius:12px;
+}
+
+.treeLabel{
+  color: rgba(233,238,252,.86);
+}
+
