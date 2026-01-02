@@ -1,4 +1,4 @@
-# sidebrain-app (static / GitHub Pages)
+# 🧠 Sidebrain
 
 A lightweight flashcard web app that **loads cards from a public CSV/TSV URL** (e.g. Google Sheets “Publish to web” export).
 No server required — runs fully in the browser and works great on mobile.
