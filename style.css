@@ -188,3 +188,7 @@ button:active { transform: translateY(1px); }
   color: rgba(233,238,252,.86);
 }
 
+body {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
