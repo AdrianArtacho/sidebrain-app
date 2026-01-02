@@ -1,8 +1,10 @@
-// Flash9 - static version (GitHub Pages) with:
+// Sidebrain - static version (GitHub Pages) with:
 // - No-header CSV support (4 columns fixed order)
 // - Hierarchical group tokens (space-separated tokens, ":" for nesting)
 //   Example: music:instr:piano  uni:univie:wisskomm
 // - Tree group selector UI (select parent includes all descendants)
+// - Tree collapse state persisted locally (default collapsed)
+// - Auto-expand node when you select it (the “3-line tweak”)
 // - Modes (image+name / image-only / forgotten-only)
 // - Swipe controls
 // - Stats + streak (session + overall) stored in localStorage
@@ -13,7 +15,8 @@ const LS = {
   forgotten: "flash9_forgotten",            // map name->true
   mode: "flash9_mode",
   shuffle: "flash9_shuffle",
-  stats: "flash9_stats_v1"
+  stats: "flash9_stats_v1",
+  openNodes: "flash9_open_nodes_v1"         // persisted open/closed state of tree nodes
 };
 
 const el = (id) => document.getElementById(id);
@@ -63,8 +66,8 @@ let activeCards = [];
 let currentIndex = 0;
 let revealed = true;
 
-// Tree open-state persisted in-memory (per page load). Nice UX.
-let openNodeIds = new Set();
+// Persisted open/close state (default collapsed => [])
+let openNodeIds = new Set(loadLS(LS.openNodes, []));
 
 // ---------- small helpers ----------
 function getQueryParam(name) {
@@ -92,7 +95,7 @@ function saveLS(key, value) {
 
 // ---------- groups (tokens + hierarchy) ----------
 function splitGroups(s) {
-  // user decided: single space = separator
+  // single space = separator
   if (!s) return [];
   return String(s).trim().split(/\s+/g).map(x => x.trim()).filter(Boolean);
 }
@@ -270,19 +273,17 @@ function setForgotten(name, value) {
 
 // ---------- selected groups (hierarchical nodes) ----------
 function getSelectedGroups() {
-  // null = all, [] = none, ["music", "uni:univie"] = selected nodes
-  return loadLS(LS.selectedGroups, null);
+  return loadLS(LS.selectedGroups, null); // null = all
 }
 
 function setSelectedGroups(groupsOrNull) {
   saveLS(LS.selectedGroups, groupsOrNull);
 }
 
-// Card matches if any selected node is among its prefixes
 function matchesSelectedGroups(card, selectedIds) {
-  if (selectedIds === null) return true;              // all
+  if (selectedIds === null) return true;        // all
   if (!Array.isArray(selectedIds)) return true;
-  if (selectedIds.length === 0) return false;         // none
+  if (selectedIds.length === 0) return false;   // none
 
   const prefixes = card.groupPrefixes || new Set();
   for (const sel of selectedIds) {
@@ -291,7 +292,7 @@ function matchesSelectedGroups(card, selectedIds) {
   return false;
 }
 
-// ---------- group tree UI ----------
+// ---------- group tree ----------
 function makeNode(id, label) {
   return { id, label, children: new Map() };
 }
@@ -319,22 +320,59 @@ function buildGroupTree(cards) {
   return root;
 }
 
-function toggleSelectedNode(nodeId) {
-  const selected = getSelectedGroups();
-  const set = new Set(Array.isArray(selected) ? selected : []);
+function collectNodeIds(treeRoot) {
+  const ids = new Set();
+  const stack = Array.from(treeRoot.children.values());
+  while (stack.length) {
+    const n = stack.pop();
+    ids.add(n.id);
+    for (const child of n.children.values()) stack.push(child);
+  }
+  return ids;
+}
 
-  if (set.has(nodeId)) set.delete(nodeId);
-  else set.add(nodeId);
+function restoreAndPruneOpenState(treeRoot) {
+  const saved = new Set(loadLS(LS.openNodes, [])); // default collapsed
+  const existing = collectNodeIds(treeRoot);
 
-  setSelectedGroups(Array.from(set));
-  renderGroupsUI();
-  applyFilters();
+  const pruned = new Set();
+  for (const id of saved) {
+    if (existing.has(id)) pruned.add(id);
+  }
+
+  openNodeIds = pruned;
+  saveLS(LS.openNodes, Array.from(openNodeIds));
+}
+
+function persistOpenState() {
+  saveLS(LS.openNodes, Array.from(openNodeIds));
 }
 
 function toggleOpenNode(nodeId) {
   if (openNodeIds.has(nodeId)) openNodeIds.delete(nodeId);
   else openNodeIds.add(nodeId);
+  persistOpenState();
   renderGroupsUI();
+}
+
+function toggleSelectedNode(nodeId) {
+  const selected = getSelectedGroups();
+  const set = new Set(Array.isArray(selected) ? selected : []);
+
+  const willSelect = !set.has(nodeId);
+  if (willSelect) set.add(nodeId);
+  else set.delete(nodeId);
+
+  setSelectedGroups(Array.from(set));
+
+  // ✅ 3-line tweak: selecting a node auto-expands it (and remembers it)
+  if (willSelect) {
+    openNodeIds.add(nodeId);
+    persistOpenState();
+  }
+
+  renderGroupsUI();
+  applyFilters();
 }
 
 function renderGroupsUI() {
@@ -342,6 +380,7 @@ function renderGroupsUI() {
 
   const tree = buildGroupTree(allCards);
   const selected = new Set(getSelectedGroups() || []);
+
   ui.groupsList.innerHTML = "";
   ui.groupsList.style.display = "block";
 
@@ -451,13 +490,11 @@ function nextCard() {
 }
 
 function applyFilters() {
-  const selectedIds = getSelectedGroups(); // null or array
+  const selectedIds = getSelectedGroups();
   const mode = ui.modeSelect ? ui.modeSelect.value : "image_name";
   const forgottenMap = getForgottenMap();
 
   let filtered = allCards.filter(c => c.name);
-
-  // hierarchical group filtering
   filtered = filtered.filter(c => matchesSelectedGroups(c, selectedIds));
 
   if (mode === "forgotten") {
@@ -482,12 +519,8 @@ function markKnown(known) {
   if (activeCards.length === 0) return;
   const c = activeCards[currentIndex % activeCards.length];
 
-  // didn't know => add to forgotten; knew => remove
   setForgotten(c.name, !known);
-
-  // stats/streak
   recordAnswer(known);
-
   nextCard();
 }
 
@@ -570,8 +603,8 @@ function onTouchEnd(e) {
 
   if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy)) return;
 
-  if (dx > 0) markKnown(true);   // swipe right
-  else markKnown(false);         // swipe left
+  if (dx > 0) markKnown(true);
+  else markKnown(false);
 }
 
 // ---------- wiring ----------
@@ -585,14 +618,11 @@ if (ui.btnLoad) ui.btnLoad.addEventListener("click", async () => {
 
   try {
     const text = await fetchSheet(url);
-    const cards = buildCardsFromText_NoHeaders(text);
+    allCards = buildCardsFromText_NoHeaders(text);
 
-    allCards = cards;
-
-    // by default, open first-level roots for nicer first impression
-    openNodeIds = new Set();
+    // Restore open/collapse state (default collapsed) and prune invalid IDs
     const tree = buildGroupTree(allCards);
-    for (const n of tree.children.values()) openNodeIds.add(n.id);
+    restoreAndPruneOpenState(tree);
 
     renderGroupsUI();
     applyFilters();
