@@ -1,13 +1,13 @@
 // Sidebrain - static version (GitHub Pages) with:
 // - No-header CSV support (4 columns fixed order)
 // - Hierarchical group tokens (space-separated tokens, ":" for nesting)
-//   Example: music:instr:piano  uni:univie:wisskomm
 // - Tree group selector UI (select parent includes all descendants)
 // - Tree collapse state persisted locally (default collapsed)
-// - Auto-expand node when you select it (the “3-line tweak”)
+// - Auto-expand node when you select it
 // - Modes (image+name / image-only / forgotten-only)
 // - Swipe controls
 // - Stats + streak (session + overall) stored in localStorage
+// - NEW: Shrinking working set: ✅ known removes card from current set; reset button appears when set is empty
 
 const LS = {
   csvUrl: "flash9_csv_url",
@@ -43,7 +43,7 @@ const ui = {
   groupsList: el("groupsList"),
   btnAllGroups: el("btnAllGroups"),
   btnNoneGroups: el("btnNoneGroups"),
-  btnReset: el("btnReset"),
+  btnReset: el("btnReset"), // resets forgotten map only
 
   counter: el("counter"),
   smallStatus: el("smallStatus"),
@@ -62,12 +62,16 @@ const ui = {
 };
 
 let allCards = [];
-let activeCards = [];
+let baseFilteredCards = [];   // snapshot of "cards that match filters" (does not shrink)
+let activeCards = [];         // the shrinking working set
 let currentIndex = 0;
 let revealed = true;
 
 // Persisted open/close state (default collapsed => [])
 let openNodeIds = new Set(loadLS(LS.openNodes, []));
+
+// Button inserted dynamically when the set is empty
+let btnResetSet = null;
 
 // ---------- small helpers ----------
 function getQueryParam(name) {
@@ -100,8 +104,6 @@ function splitGroups(s) {
   return String(s).trim().split(/\s+/g).map(x => x.trim()).filter(Boolean);
 }
 
-// Turn ["music:instr:piano", "uni:univie:wisskomm"] into a Set of all prefixes:
-// music, music:instr, music:instr:piano, uni, uni:univie, uni:univie:wisskomm
 function expandGroupPrefixes(groupTokens) {
   const out = new Set();
   for (const token of groupTokens || []) {
@@ -365,14 +367,14 @@ function toggleSelectedNode(nodeId) {
 
   setSelectedGroups(Array.from(set));
 
-  // ✅ 3-line tweak: selecting a node auto-expands it (and remembers it)
+  // selecting a node auto-expands it (and remembers it)
   if (willSelect) {
     openNodeIds.add(nodeId);
     persistOpenState();
   }
 
   renderGroupsUI();
-  applyFilters();
+  applyFilters(true); // changing filters should reset working set
 }
 
 function renderGroupsUI() {
@@ -425,6 +427,54 @@ function renderGroupsUI() {
   for (const r of roots) renderNode(r, 0);
 }
 
+// ---------- UI helpers for shrinking set ----------
+function ensureResetSetButton() {
+  if (btnResetSet) return btnResetSet;
+
+  const actionsContainer = ui.btnYes?.parentElement; // the .actions div in your HTML
+  if (!actionsContainer) return null;
+
+  const b = document.createElement("button");
+  b.textContent = "↻ Reset set";
+  b.className = "primary";
+  b.style.display = "none";
+
+  b.addEventListener("click", () => {
+    resetWorkingSet();
+  });
+
+  actionsContainer.appendChild(b);
+  btnResetSet = b;
+  return btnResetSet;
+}
+
+function setPracticeControlsEnabled(enabled) {
+  // show/hide existing controls based on whether there are cards left
+  if (ui.btnNo) ui.btnNo.style.display = enabled ? "" : "none";
+  if (ui.btnYes) ui.btnYes.style.display = enabled ? "" : "none";
+  if (ui.btnNext) ui.btnNext.style.display = enabled ? "" : "none";
+
+  const b = ensureResetSetButton();
+  if (b) b.style.display = enabled ? "none" : "";
+}
+
+function resetWorkingSet() {
+  // rebuild working set from the last baseFilteredCards snapshot
+  const doShuffle = ui.shuffleToggle ? ui.shuffleToggle.checked : true;
+  activeCards = doShuffle ? shuffleInPlace(baseFilteredCards.slice()) : baseFilteredCards.slice();
+  currentIndex = 0;
+
+  if (ui.smallStatus) {
+    ui.smallStatus.textContent =
+      activeCards.length > 0
+        ? `Ready. ${activeCards.length} cards in the current selection.`
+        : `No cards match your current filters.`;
+  }
+
+  setPracticeControlsEnabled(activeCards.length > 0);
+  showCard();
+}
+
 // ---------- cards & UI ----------
 function setImage(url) {
   if (!ui.cardImg || !ui.imgFallback) return;
@@ -464,11 +514,12 @@ function showCard() {
   if (!ui.counter || !ui.cardName || !ui.cardInfo || !ui.cardGroups) return;
 
   if (activeCards.length === 0) {
-    ui.counter.textContent = "—";
-    ui.cardName.textContent = "—";
-    ui.cardInfo.textContent = "";
+    ui.counter.textContent = "0 / 0";
+    ui.cardName.textContent = "🎉 Done!";
+    ui.cardInfo.textContent = "You marked all cards as known.";
     ui.cardGroups.textContent = "";
     setImage("");
+    setPracticeControlsEnabled(false);
     return;
   }
 
@@ -481,6 +532,8 @@ function showCard() {
   ui.cardInfo.textContent = c.info || "";
   ui.cardGroups.textContent = (c.groups && c.groups.length) ? `Groups: ${c.groups.join(" ")}` : "";
   setImage(c.image || "");
+
+  setPracticeControlsEnabled(true);
 }
 
 function nextCard() {
@@ -489,7 +542,8 @@ function nextCard() {
   showCard();
 }
 
-function applyFilters() {
+// applyFilters(resetWorkingSetToo=true) will rebuild baseFiltered and also reset the shrinking set
+function applyFilters(resetWorkingSetToo = true) {
   const selectedIds = getSelectedGroups();
   const mode = ui.modeSelect ? ui.modeSelect.value : "image_name";
   const forgottenMap = getForgottenMap();
@@ -501,27 +555,59 @@ function applyFilters() {
     filtered = filtered.filter(c => forgottenMap[c.name]);
   }
 
-  const doShuffle = ui.shuffleToggle ? ui.shuffleToggle.checked : true;
-  activeCards = doShuffle ? shuffleInPlace(filtered.slice()) : filtered.slice();
-  currentIndex = 0;
+  baseFilteredCards = filtered.slice();
 
   if (ui.smallStatus) {
     ui.smallStatus.textContent =
-      activeCards.length > 0
-        ? `Ready. ${activeCards.length} cards in the current selection.`
+      baseFilteredCards.length > 0
+        ? `Ready. ${baseFilteredCards.length} cards in the current selection.`
         : `No cards match your current filters.`;
   }
 
-  showCard();
+  if (resetWorkingSetToo) {
+    resetWorkingSet();
+  } else {
+    // if not resetting, still ensure UI reflects whether the set is empty
+    setPracticeControlsEnabled(activeCards.length > 0);
+    showCard();
+  }
+}
+
+function removeCurrentCardFromWorkingSet() {
+  if (activeCards.length === 0) return;
+
+  const idx = currentIndex % activeCards.length;
+  activeCards.splice(idx, 1);
+
+  // Keep index stable: if we removed the last element, wrap
+  if (activeCards.length === 0) {
+    currentIndex = 0;
+  } else if (idx >= activeCards.length) {
+    currentIndex = 0;
+  }
 }
 
 function markKnown(known) {
   if (activeCards.length === 0) return;
-  const c = activeCards[currentIndex % activeCards.length];
 
+  const idx = currentIndex % activeCards.length;
+  const c = activeCards[idx];
+
+  // Mirror your existing forgotten logic:
+  // unknown => add to forgotten; known => remove from forgotten
   setForgotten(c.name, !known);
+
+  // stats/streak
   recordAnswer(known);
-  nextCard();
+
+  // NEW behavior: known => remove from working set immediately
+  if (known) {
+    removeCurrentCardFromWorkingSet();
+    showCard();
+  } else {
+    // unknown stays in set; just move on
+    nextCard();
+  }
 }
 
 // ---------- data loading (NO HEADERS) ----------
@@ -625,7 +711,9 @@ if (ui.btnLoad) ui.btnLoad.addEventListener("click", async () => {
     restoreAndPruneOpenState(tree);
 
     renderGroupsUI();
-    applyFilters();
+
+    // Rebuild working set from filters
+    applyFilters(true);
 
     setStatus(`Loaded ${allCards.length} cards.`);
     resetSessionStats();
@@ -639,24 +727,24 @@ if (ui.btnCopyLink) ui.btnCopyLink.addEventListener("click", copyShareLink);
 
 if (ui.modeSelect) ui.modeSelect.addEventListener("change", () => {
   saveLS(LS.mode, ui.modeSelect.value);
-  applyFilters();
+  applyFilters(true);
 });
 
 if (ui.shuffleToggle) ui.shuffleToggle.addEventListener("change", () => {
   saveLS(LS.shuffle, ui.shuffleToggle.checked);
-  applyFilters();
+  applyFilters(true);
 });
 
 if (ui.btnAllGroups) ui.btnAllGroups.addEventListener("click", () => {
   setSelectedGroups(null); // all
   renderGroupsUI();
-  applyFilters();
+  applyFilters(true);
 });
 
 if (ui.btnNoneGroups) ui.btnNoneGroups.addEventListener("click", () => {
   setSelectedGroups([]); // none
   renderGroupsUI();
-  applyFilters();
+  applyFilters(true);
 });
 
 if (ui.btnReveal) ui.btnReveal.addEventListener("click", () => {
@@ -671,9 +759,10 @@ if (ui.btnNo) ui.btnNo.addEventListener("click", () => markKnown(false));
 if (ui.btnNext) ui.btnNext.addEventListener("click", nextCard);
 
 if (ui.btnReset) ui.btnReset.addEventListener("click", () => {
+  // resets forgotten tags only (kept as-is)
   localStorage.removeItem(LS.forgotten);
-  setStatus("Progress reset on this device.");
-  applyFilters();
+  setStatus("Forgotten list reset on this device.");
+  applyFilters(true);
   setTimeout(() => setStatus(""), 1500);
 });
 
@@ -690,8 +779,12 @@ if (ui.card) {
 
 // ---------- init ----------
 (function init() {
+  // restore UI settings
   if (ui.modeSelect) ui.modeSelect.value = loadLS(LS.mode, "image_name");
   if (ui.shuffleToggle) ui.shuffleToggle.checked = loadLS(LS.shuffle, true);
+
+  // create reset-set button once (hidden until needed)
+  ensureResetSetButton();
 
   renderStats();
 
@@ -701,5 +794,7 @@ if (ui.card) {
     if (ui.btnLoad) ui.btnLoad.click();
   } else {
     if (ui.smallStatus) ui.smallStatus.textContent = "Paste a public CSV/TSV URL to begin.";
+    // empty state
+    applyFilters(true);
   }
 })();
