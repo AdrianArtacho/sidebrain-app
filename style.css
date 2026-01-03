@@ -194,7 +194,7 @@ body {
 }
 
 /* Make sure the image area can host an absolute overlay */
-#cardImgWrap {
+#imageWrap {
   position: relative;
 }
 
@@ -202,6 +202,7 @@ body {
 #cardImgText {
   position: absolute;
   inset: 0;                 /* top/right/bottom/left = 0 */
+  z-index: 5;
   display: none;            /* toggled by JS */
   align-items: center;
   justify-content: center;
