@@ -52,11 +52,9 @@ uni:univie:wisskomm
 ### 📝 Rich info text
 - The info field supports **simple Markdown links**:
 
-````
-
-violin [piece](https://open.spotify.com/track/...)
-
-```
+  ```
+  violin [piece](https://open.spotify.com/track/...)
+  ```
 
 - Links are safe (HTML-escaped) and mobile-friendly
 
@@ -107,10 +105,8 @@ Each row must contain **exactly four columns**, in this order:
 ### Example row
 
 ```
-
-Michael Huber   MDW CAP   [https://www.mdw.ac.at/...jpg](https://www.mdw.ac.at/...jpg)   Musiksoziologie
-Ingrid Oberkanins   MDW CAP CAP:Elementar   [Rhythmik]   violin [piece](https://open.spotify.com/track/...)
-
+Ernst 	MUSIC:Lieder	[Last rose of summer]	"violin [piece](https://open.spotify.com/track/1WJLS6QFqosNjYcgjwCU27?si=7dca228749ae4a60), together with the Erlkönig"
+"Aron Copland"	MUSIC:1960s	"https://upload.wikimedia.org/wikipedia/commons/5/5f/Greatvalley-map.png"	"3rd Symphony"
 ```
 
 ---
@@ -149,7 +145,7 @@ There is also a **“Copy link”** button in the UI to generate this automatica
    - `app.js`
    - `style.css`
    - `manifest.json`
-   - `icon-192.png`
+   - `Sidebrain.png`
 3. Commit and push
 4. On GitHub:
    - **Settings → Pages**
