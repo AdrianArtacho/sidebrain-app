@@ -618,7 +618,8 @@ function showCard() {
   revealed = !(ui.modeSelect && ui.modeSelect.value === "image_only");
   renderReveal(c);
 
-  ui.cardInfo.textContent = c.info || "";
+  ui.cardInfo.innerHTML = renderInfoWithLinks(c.info || "");
+
   ui.cardGroups.textContent = (c.groups && c.groups.length) ? `Groups: ${c.groups.join(" ")}` : "";
   setImageOrText(c.image || "");
 
