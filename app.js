@@ -486,7 +486,7 @@ function parseImageField(imageFieldRaw) {
 function ensureImageTextOverlay() {
   // We want the overlay to cover the SAME box as the image.
   // Prefer a dedicated wrapper: #cardImgWrap.
-  const wrap = document.getElementById("cardImgWrap");
+  const wrap = document.getElementById("imageWrap");
   if (!wrap) return null;
 
   let overlay = document.getElementById("cardImgText");
@@ -589,7 +589,7 @@ function showCard() {
     ui.cardName.textContent = "🎉 Done!";
     ui.cardInfo.textContent = "You marked all cards as known.";
     ui.cardGroups.textContent = "";
-    setImage("");
+    setImageOrText("");
     setPracticeControlsEnabled(false);
     return;
   }
