@@ -19,12 +19,10 @@ No backend, no accounts, no data stored in the repository.
 - Use `:` to express hierarchy:
 
 ```
-
 music
-music:instr
-music:instr:piano
-uni:univie:wisskomm
-
+music:XX
+music:XX:1960s
+theater:modern
 ````
 
 - Groups are shown as a **collapsible tree**
@@ -102,11 +100,13 @@ Each row must contain **exactly four columns**, in this order:
 3. **Image URL or `[Text]`**
 4. **Info text** (supports Markdown links)
 
-### Example row
+### Example csv lines
 
 ```
-Ernst 	MUSIC:Lieder	[Last rose of summer]	"violin [piece](https://open.spotify.com/track/1WJLS6QFqosNjYcgjwCU27?si=7dca228749ae4a60), together with the Erlkönig"
-"Aron Copland"	MUSIC:1960s	"https://upload.wikimedia.org/wikipedia/commons/5/5f/Greatvalley-map.png"	"3rd Symphony"
+Ernst, MUSIC:Lieder,[Last rose of summer],violin [piece](https://open.spotify.com/track/1WJLS6QFqosNjYcgjwCU27?si=7dca228749ae4a60), together with the Erlkönig
+```
+```
+Aron Copland,	MUSIC:1960s, https://upload.wikimedia.org/wikipedia/commons/5/5f/Greatvalley-map.png, 3rd Symphony
 ```
 
 ---
