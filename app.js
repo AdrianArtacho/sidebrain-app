@@ -654,6 +654,7 @@ function setImageOrText(imageFieldRaw) {
 
   // Text mode
   if (parsed.kind === "text" && parsed.text) {
+    if (ui.imgFallback) ui.imgFallback.style.display = "none";
     if (overlay) {
       overlay.style.display = "flex";
 
