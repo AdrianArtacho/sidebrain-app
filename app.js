@@ -708,7 +708,6 @@ function showCard() {
     ui.counter.textContent = "0 / 0";
     ui.cardName.textContent = "🎉 Done!";
     ui.cardInfo.textContent = "You marked all cards as known.";
-    ui.cardInfo.innerHTML = renderInfoWithLinks(c.info || "");
     ui.cardGroups.textContent = "";
     setImageOrText("");
     setPracticeControlsEnabled(false);
