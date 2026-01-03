@@ -597,7 +597,23 @@ function ensureImageTextOverlay() {
 
   overlay = document.createElement("div");
   overlay.id = "cardImgText";
+  overlay.style.position = "absolute";  
+  overlay.style.inset = "0";
+  overlay.style.display = "none";
+  overlay.style.alignItems = "center";
+  overlay.style.justifyContent = "center";
+  overlay.style.padding = "14px";
+  overlay.style.boxSizing = "border-box";
+  overlay.style.textAlign = "center";
+  overlay.style.fontWeight = "800";
+  overlay.style.lineHeight = "1.1";
+  overlay.style.color = "#fff";
+  overlay.style.background = "rgba(0,0,0,0.35)";
+  overlay.style.borderRadius = "16px";
+  overlay.style.overflow = "hidden";
+  overlay.style.wordBreak = "break-word";
   wrap.appendChild(overlay);
+  wrap.style.position = "relative";
   return overlay;
 }
 
