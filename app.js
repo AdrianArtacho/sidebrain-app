@@ -581,6 +581,24 @@ function renderReveal(card) {
   }
 }
 
+function renderInfoWithLinks(text) {
+  if (!text) return "";
+
+  // Escape HTML first (security)
+  let safe = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  // Replace Markdown links: [label](url)
+  safe = safe.replace(
+    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+    `<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>`
+  );
+
+  return safe;
+}
+
 function showCard() {
   if (!ui.counter || !ui.cardName || !ui.cardInfo || !ui.cardGroups) return;
 
