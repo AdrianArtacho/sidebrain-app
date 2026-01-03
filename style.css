@@ -281,3 +281,23 @@ body {
   height: min(60vh, 520px);
   border: 0;
 }
+
+#appFooter {
+  margin-top: 10px;
+  padding: 6px 6px 10px;
+  text-align: center;
+  font-size: 10.5px;      /* smaller */
+  line-height: 1.3;
+  opacity: 0.45;          /* more discreet */
+  color: var(--fg, #ddd);
+}
+
+#appFooter a {
+  color: inherit;
+  text-decoration: underline;
+  font-weight: 500;
+}
+
+#appFooter a:hover {
+  opacity: 0.8;
+}
