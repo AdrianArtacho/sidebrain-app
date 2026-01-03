@@ -1,4 +1,4 @@
-# 🧠 Sidebrain / Flash9
+# 🧠 Sidebrain
 
 **Sidebrain (Flash9)** is a lightweight, server-less flashcard web app that loads all content dynamically from a **public CSV/TSV URL** (for example a Google Sheets “Publish to web” export).
 
@@ -197,14 +197,7 @@ It is intentionally simple, hackable, and portable.
 
 ---
 
-## 🛠 Ideas for extension
+## 🛠 CREDITS
 
-- spaced repetition weighting
-- daily goals
-- offline caching
-- audio-only cards
-- collaborative shared sheets
-
----
-
+THis online App was developed by [Adrián Artacho](https://www.artacho.at/).
 Enjoy — and feel free to fork, adapt, or repurpose Sidebrain for any learning context.
