@@ -217,3 +217,12 @@ body {
   word-break: break-word;
 }
 
+#cardInfo a {
+  color: #7dd3fc;
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+#cardInfo a:active {
+  opacity: 0.7;
+}
