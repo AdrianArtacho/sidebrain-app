@@ -73,7 +73,110 @@ let openNodeIds = new Set(loadLS(LS.openNodes, []));
 // Button inserted dynamically when the set is empty
 let btnResetSet = null;
 
+//----------- modal hyperlinks -------
+
+function ensurePreviewModal() {
+  let m = document.getElementById("previewModal");
+  if (m) return m;
+
+  m = document.createElement("div");
+  m.id = "previewModal";
+  m.innerHTML = `
+    <div class="box">
+      <div class="bar">
+        <div class="title" id="previewTitle">Preview</div>
+        <button class="closeBtn" id="previewClose">Close</button>
+      </div>
+      <div class="content" id="previewContent"></div>
+    </div>
+  `;
+  document.body.appendChild(m);
+
+  const close = () => {
+    const content = document.getElementById("previewContent");
+    if (content) content.innerHTML = ""; // stop playback by removing iframe
+    m.style.display = "none";
+  };
+
+  m.addEventListener("click", (e) => {
+    // click outside the box closes
+    if (e.target === m) close();
+  });
+
+  document.getElementById("previewClose")?.addEventListener("click", close);
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && m.style.display !== "none") close();
+  });
+
+  m._close = close;
+  return m;
+}
+
+function parseYouTubeId(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes("youtu.be")) return u.pathname.replace("/", "");
+    if (u.hostname.includes("youtube.com")) {
+      if (u.pathname.startsWith("/watch")) return u.searchParams.get("v");
+      if (u.pathname.startsWith("/embed/")) return u.pathname.split("/")[2];
+      if (u.pathname.startsWith("/shorts/")) return u.pathname.split("/")[2];
+    }
+  } catch {}
+  return null;
+}
+
+function parseSpotify(resourceUrl) {
+  // Supports open.spotify.com/{track|album|playlist|artist|episode|show}/{id}
+  try {
+    const u = new URL(resourceUrl);
+    if (!u.hostname.includes("open.spotify.com")) return null;
+    const parts = u.pathname.split("/").filter(Boolean);
+    if (parts.length >= 2) {
+      const type = parts[0];
+      const id = parts[1];
+      return { type, id };
+    }
+  } catch {}
+  return null;
+}
+
+function openPreview(title, url) {
+  const modal = ensurePreviewModal();
+  const t = document.getElementById("previewTitle");
+  const content = document.getElementById("previewContent");
+  if (!content) return;
+
+  if (t) t.textContent = title || "Preview";
+  content.innerHTML = "";
+
+  // YouTube
+  const yt = parseYouTubeId(url);
+  if (yt) {
+    // Basic embed URL; parameters documented by Google/YouTube. :contentReference[oaicite:4]{index=4}
+    const src = `https://www.youtube.com/embed/${encodeURIComponent(yt)}?rel=0`;
+    content.innerHTML = `<iframe allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen src="${src}"></iframe>`;
+    modal.style.display = "flex";
+    return;
+  }
+
+  // Spotify embed
+  const sp = parseSpotify(url);
+  if (sp) {
+    // Spotify embeds support interactive content. :contentReference[oaicite:5]{index=5}
+    const src = `https://open.spotify.com/embed/${encodeURIComponent(sp.type)}/${encodeURIComponent(sp.id)}`;
+    content.innerHTML = `<iframe allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" src="${src}"></iframe>`;
+    modal.style.display = "flex";
+    return;
+  }
+
+  // Fallback: open in new tab
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+
 // ---------- small helpers ----------
+
 function getQueryParam(name) {
   const url = new URL(window.location.href);
   return url.searchParams.get(name);
@@ -584,20 +687,19 @@ function renderReveal(card) {
 function renderInfoWithLinks(text) {
   if (!text) return "";
 
-  // Escape HTML first (security)
   let safe = text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
-  // Replace Markdown links: [label](url)
   safe = safe.replace(
     /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-    `<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>`
+    `<a href="$2" data-preview="1">$1</a>`
   );
 
   return safe;
 }
+
 
 function showCard() {
   if (!ui.counter || !ui.cardName || !ui.cardInfo || !ui.cardGroups) return;
@@ -606,6 +708,7 @@ function showCard() {
     ui.counter.textContent = "0 / 0";
     ui.cardName.textContent = "🎉 Done!";
     ui.cardInfo.textContent = "You marked all cards as known.";
+    ui.cardInfo.innerHTML = renderInfoWithLinks(c.info || "");
     ui.cardGroups.textContent = "";
     setImageOrText("");
     setPracticeControlsEnabled(false);
@@ -872,6 +975,15 @@ if (ui.card) {
   // restore UI settings
   if (ui.modeSelect) ui.modeSelect.value = loadLS(LS.mode, "image_name");
   if (ui.shuffleToggle) ui.shuffleToggle.checked = loadLS(LS.shuffle, true);
+  if (ui.cardInfo) {
+  ui.cardInfo.addEventListener("click", (e) => {
+    const a = e.target.closest?.("a[data-preview='1']");
+    if (!a) return;
+    e.preventDefault();
+    openPreview(a.textContent || "Preview", a.getAttribute("href"));
+  });
+}
+
 
   // create reset-set button once (hidden until needed)
   ensureResetSetButton();
@@ -888,3 +1000,4 @@ if (ui.card) {
     applyFilters(true);
   }
 })();
+
