@@ -479,82 +479,51 @@ function resetWorkingSet() {
 function parseImageField(imageFieldRaw) {
   const s = String(imageFieldRaw || "").trim();
   const m = s.match(/^\[(.*)\]$/s); // whole cell is [ ... ]
-  if (m) {
-    const text = (m[1] || "").trim();
-    return { kind: "text", text };
-  }
+  if (m) return { kind: "text", text: (m[1] || "").trim() };
   return { kind: "url", url: s };
 }
 
-// Ensure we have a text overlay element sitting where the image normally goes
 function ensureImageTextOverlay() {
+  // We want the overlay to cover the SAME box as the image.
+  // Prefer a dedicated wrapper: #cardImgWrap.
+  const wrap = document.getElementById("cardImgWrap");
+  if (!wrap) return null;
+
   let overlay = document.getElementById("cardImgText");
   if (overlay) return overlay;
 
-  const container = ui.cardImg?.parentElement || ui.card; // best effort
-  if (!container) return null;
-
   overlay = document.createElement("div");
   overlay.id = "cardImgText";
-  overlay.style.display = "none";
-  overlay.style.userSelect = "none";
-  overlay.style.textAlign = "center";
-  overlay.style.fontWeight = "800";
-  overlay.style.lineHeight = "1.1";
-  overlay.style.padding = "18px";
-  overlay.style.borderRadius = "16px";
-  overlay.style.width = "100%";
-  overlay.style.height = "100%";
-  overlay.style.minHeight = "220px"; // keeps a good card height even without image
-  overlay.style.display = "none";
-  overlay.style.alignItems = "center";
-  overlay.style.justifyContent = "center";
-  overlay.style.color = "white";
-  overlay.style.background = "rgba(0,0,0,0.35)";
-  overlay.style.backdropFilter = "blur(2px)";
-  overlay.style.boxSizing = "border-box";
-
-  // Use flex to center text
-  overlay.style.display = "none";
-  overlay.style.display = "flex";
-
-  // Start hidden (we’ll control it in setImageOrText)
-  overlay.style.display = "none";
-
-  // Put it near the image
-  container.appendChild(overlay);
+  wrap.appendChild(overlay);
   return overlay;
 }
 
 function fitTextToBox(el, text) {
-  // Simple, robust autosize: decrease font-size until it fits.
-  // No canvas, no dependencies.
   el.textContent = text || "";
-  el.style.fontSize = "64px"; // start big
 
-  const maxIter = 30;
+  // Start large, then shrink until it fits
+  let size = 56;
+  el.style.fontSize = `${size}px`;
+
+  const minSize = 14;
+  const maxIter = 40;
+
   for (let i = 0; i < maxIter; i++) {
-    const overflows =
-      el.scrollHeight > el.clientHeight ||
-      el.scrollWidth > el.clientWidth;
-
+    const overflows = el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth;
     if (!overflows) break;
 
-    const current = parseFloat(getComputedStyle(el).fontSize);
-    const next = Math.max(14, current - 2);
-    el.style.fontSize = `${next}px`;
+    size = Math.max(minSize, size - 2);
+    el.style.fontSize = `${size}px`;
 
-    if (next === 14) break;
+    if (size === minSize) break;
   }
 }
 
-
-// ---------- cards & UI ----------
 function setImageOrText(imageFieldRaw) {
   const overlay = ensureImageTextOverlay();
   const parsed = parseImageField(imageFieldRaw);
 
-  // Hide everything by default
+  // Reset visibility
   if (overlay) overlay.style.display = "none";
   if (ui.cardImg) {
     ui.cardImg.style.display = "none";
@@ -564,15 +533,22 @@ function setImageOrText(imageFieldRaw) {
   }
   if (ui.imgFallback) ui.imgFallback.style.display = "none";
 
+  // Text mode
   if (parsed.kind === "text" && parsed.text) {
     if (overlay) {
       overlay.style.display = "flex";
-      // Important: wait a tick so clientWidth/Height are correct
-      requestAnimationFrame(() => fitTextToBox(overlay, parsed.text));
+
+      // Wait for layout so clientWidth/clientHeight are correct
+      requestAnimationFrame(() => {
+        // In case images/flex layout change after a tick, do twice
+        fitTextToBox(overlay, parsed.text);
+        requestAnimationFrame(() => fitTextToBox(overlay, parsed.text));
+      });
     }
     return;
   }
 
+  // URL mode
   const url = parsed.url;
   if (!url) {
     if (ui.imgFallback) ui.imgFallback.style.display = "block";
