@@ -589,7 +589,7 @@ function parseImageField(imageFieldRaw) {
 function ensureImageTextOverlay() {
   // We want the overlay to cover the SAME box as the image.
   // Prefer a dedicated wrapper: #cardImgWrap.
-  const wrap = document.getElementById("imageWrap");
+  const wrap = document.getElementById("cardImgWrap");
   if (!wrap) return null;
 
   let overlay = document.getElementById("cardImgText");
