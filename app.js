@@ -475,16 +475,111 @@ function resetWorkingSet() {
   showCard();
 }
 
-// ---------- cards & UI ----------
-function setImage(url) {
-  if (!ui.cardImg || !ui.imgFallback) return;
+// ---------- text instead of images ----------
+function parseImageField(imageFieldRaw) {
+  const s = String(imageFieldRaw || "").trim();
+  const m = s.match(/^\[(.*)\]$/s); // whole cell is [ ... ]
+  if (m) {
+    const text = (m[1] || "").trim();
+    return { kind: "text", text };
+  }
+  return { kind: "url", url: s };
+}
 
-  if (!url) {
+// Ensure we have a text overlay element sitting where the image normally goes
+function ensureImageTextOverlay() {
+  let overlay = document.getElementById("cardImgText");
+  if (overlay) return overlay;
+
+  const container = ui.cardImg?.parentElement || ui.card; // best effort
+  if (!container) return null;
+
+  overlay = document.createElement("div");
+  overlay.id = "cardImgText";
+  overlay.style.display = "none";
+  overlay.style.userSelect = "none";
+  overlay.style.textAlign = "center";
+  overlay.style.fontWeight = "800";
+  overlay.style.lineHeight = "1.1";
+  overlay.style.padding = "18px";
+  overlay.style.borderRadius = "16px";
+  overlay.style.width = "100%";
+  overlay.style.height = "100%";
+  overlay.style.minHeight = "220px"; // keeps a good card height even without image
+  overlay.style.display = "none";
+  overlay.style.alignItems = "center";
+  overlay.style.justifyContent = "center";
+  overlay.style.color = "white";
+  overlay.style.background = "rgba(0,0,0,0.35)";
+  overlay.style.backdropFilter = "blur(2px)";
+  overlay.style.boxSizing = "border-box";
+
+  // Use flex to center text
+  overlay.style.display = "none";
+  overlay.style.display = "flex";
+
+  // Start hidden (we’ll control it in setImageOrText)
+  overlay.style.display = "none";
+
+  // Put it near the image
+  container.appendChild(overlay);
+  return overlay;
+}
+
+function fitTextToBox(el, text) {
+  // Simple, robust autosize: decrease font-size until it fits.
+  // No canvas, no dependencies.
+  el.textContent = text || "";
+  el.style.fontSize = "64px"; // start big
+
+  const maxIter = 30;
+  for (let i = 0; i < maxIter; i++) {
+    const overflows =
+      el.scrollHeight > el.clientHeight ||
+      el.scrollWidth > el.clientWidth;
+
+    if (!overflows) break;
+
+    const current = parseFloat(getComputedStyle(el).fontSize);
+    const next = Math.max(14, current - 2);
+    el.style.fontSize = `${next}px`;
+
+    if (next === 14) break;
+  }
+}
+
+
+// ---------- cards & UI ----------
+function setImageOrText(imageFieldRaw) {
+  const overlay = ensureImageTextOverlay();
+  const parsed = parseImageField(imageFieldRaw);
+
+  // Hide everything by default
+  if (overlay) overlay.style.display = "none";
+  if (ui.cardImg) {
     ui.cardImg.style.display = "none";
-    ui.imgFallback.style.display = "block";
+    ui.cardImg.onload = null;
+    ui.cardImg.onerror = null;
     ui.cardImg.removeAttribute("src");
+  }
+  if (ui.imgFallback) ui.imgFallback.style.display = "none";
+
+  if (parsed.kind === "text" && parsed.text) {
+    if (overlay) {
+      overlay.style.display = "flex";
+      // Important: wait a tick so clientWidth/Height are correct
+      requestAnimationFrame(() => fitTextToBox(overlay, parsed.text));
+    }
     return;
   }
+
+  const url = parsed.url;
+  if (!url) {
+    if (ui.imgFallback) ui.imgFallback.style.display = "block";
+    return;
+  }
+
+  if (!ui.cardImg || !ui.imgFallback) return;
 
   ui.cardImg.onload = () => {
     ui.cardImg.style.display = "block";
@@ -531,7 +626,7 @@ function showCard() {
 
   ui.cardInfo.textContent = c.info || "";
   ui.cardGroups.textContent = (c.groups && c.groups.length) ? `Groups: ${c.groups.join(" ")}` : "";
-  setImage(c.image || "");
+  setImageOrText(c.image || "");
 
   setPracticeControlsEnabled(true);
 }
