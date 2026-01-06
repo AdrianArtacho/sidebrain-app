@@ -64,6 +64,10 @@ body {
 h2 { margin: 0 0 10px 0; font-size: 15px; color: var(--text); }
 
 .row { display: flex; gap: 10px; }
+#dbSelect {
+  max-width: 220px;
+}
+
 .input {
   width: 100%;
   padding: 12px 12px;
