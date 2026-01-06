@@ -929,18 +929,37 @@ function upsertDatabase(name, url) {
   if (!url) return;
 
   const list = loadDatabases();
-  const cleanName = (name || "").trim() || makeNextDefaultName(list);
   const cleanUrl = url.trim();
+  const providedName = (name || "").trim();
 
-  const idx = list.findIndex(x => (x.name || "").toLowerCase() === cleanName.toLowerCase());
-  if (idx >= 0) list[idx].url = cleanUrl;
-  else list.push({ name: cleanName, url: cleanUrl });
+  // 1) If URL already exists, do NOT create a new entry
+  const existingByUrl = list.findIndex(x => (x.url || "").trim() === cleanUrl);
+  if (existingByUrl >= 0) {
+    // If user provided a name, rename that existing entry
+    if (providedName) {
+      list[existingByUrl].name = providedName;
+      list.sort((a, b) => a.name.localeCompare(b.name));
+      saveDatabases(list);
+      saveLS(LS.activeDatabase, providedName);
+      renderDatabaseDropdown();
+    } else {
+      // Keep current name, but set it active
+      saveLS(LS.activeDatabase, list[existingByUrl].name);
+      renderDatabaseDropdown();
+    }
+    return;
+  }
+
+  // 2) Otherwise create a new entry
+  const cleanName = providedName || makeNextDefaultName(list);
+  list.push({ name: cleanName, url: cleanUrl });
 
   list.sort((a, b) => a.name.localeCompare(b.name));
   saveDatabases(list);
   saveLS(LS.activeDatabase, cleanName);
   renderDatabaseDropdown();
 }
+
 
 function renderDatabaseDropdown() {
   if (!ui.dbSelect) return;
