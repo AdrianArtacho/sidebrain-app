@@ -47,8 +47,15 @@
       <h2>Data source</h2>
 
       <div class="row">
-        <input id="csvUrlInput" class="input" type="url" placeholder="Paste a public CSV/TSV URL (Google Sheets 'output=csv'…)" />
+        <select id="dbSelect" class="input" style="max-width: 220px;">
+          <option value="">(no saved databases)</option>
+        </select>
+      
+        <input id="csvUrlInput" class="input" type="url"
+          placeholder="Paste a public CSV/TSV URL (Google Sheets 'output=csv'…)" />
+      
         <button id="btnLoad" class="primary">Load</button>
+        <button id="btnForgetDb" class="ghost">Forget</button>
       </div>
 
       <div class="hint">
