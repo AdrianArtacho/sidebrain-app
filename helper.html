@@ -6,440 +6,783 @@
 <title>Sidebrain Helper</title>
 
 <style>
-body {
-  margin: 0;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  background:#0b0b0f;
-  color:#eaeaf2;
-}
-.wrap { max-width: 980px; margin: 0 auto; padding: 18px; }
-h1 { font-size: 18px; margin: 0 0 10px; }
-h2 { font-size: 15px; margin: 0 0 10px; }
-.muted { opacity:.75; font-size:13px }
-.mini { font-size:12px; opacity:.85 }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    background:#0b0b0f;
+    color:#eaeaf2;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 18px; }
+  h1 { font-size: 18px; margin: 0 0 10px; }
+  h2 { font-size: 15px; margin: 0 0 10px; }
+  .muted { opacity:.75; font-size:13px }
+  .mini { font-size:12px; opacity:.85 }
 
-.card {
-  background: rgba(255,255,255,.05);
-  border: 1px solid rgba(255,255,255,.10);
-  border-radius: 16px;
-  padding: 14px;
-  margin: 12px 0;
-}
+  .card {
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.10);
+    border-radius: 16px;
+    padding: 14px;
+    margin: 12px 0;
+  }
 
-.row { display:flex; gap:10px; flex-wrap:wrap; align-items:center }
-.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px }
-@media(max-width:860px){ .grid2{ grid-template-columns:1fr } }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px }
+  @media(max-width:860px){ .grid2{ grid-template-columns:1fr } }
 
-label { font-size:12px; opacity:.8; display:block; margin-bottom:6px }
+  label { font-size:12px; opacity:.8; display:block; margin-bottom:6px }
 
-input, textarea, select, button {
-  border-radius:12px;
-  border:1px solid rgba(255,255,255,.14);
-  background: rgba(0,0,0,.25);
-  color:#eaeaf2;
-  padding:10px 12px;
-  font-size:14px;
-}
-input, select { height:40px }
-textarea { width:100%; min-height:84px; resize:vertical }
+  input, textarea, select, button {
+    border-radius:12px;
+    border:1px solid rgba(255,255,255,.14);
+    background: rgba(0,0,0,.25);
+    color:#eaeaf2;
+    padding:10px 12px;
+    font-size:14px;
+  }
+  input, select { height:40px }
+  textarea { width:100%; min-height:84px; resize:vertical }
+  .grow { flex:1; min-width:260px }
 
-.grow { flex:1; min-width:260px }
+  button { cursor:pointer }
+  button.primary {
+    background: rgba(125,211,252,.20);
+    border-color: rgba(125,211,252,.35);
+  }
+  button.ghost { background:transparent }
 
-button { cursor:pointer }
-button.primary {
-  background: rgba(125,211,252,.20);
-  border-color: rgba(125,211,252,.35);
-}
-button.ghost { background:transparent }
+  pre, code {
+    background: rgba(0,0,0,.35);
+    border:1px solid rgba(255,255,255,.10);
+    border-radius:12px;
+    padding:10px 12px;
+    display:block;
+    overflow:auto;
+  }
 
-pre, code {
-  background: rgba(0,0,0,.35);
-  border:1px solid rgba(255,255,255,.10);
-  border-radius:12px;
-  padding:10px 12px;
-  display:block;
-  overflow:auto;
-}
+  .ok { color:#9ef0c2 }
+  .warn { color:#ffd08a }
+  .err { color:#ff9aa9 }
 
-.ok { color:#9ef0c2 }
-.warn { color:#ffd08a }
-.err { color:#ff9aa9 }
+  /* group picker */
+  .gpRow { display:flex; gap:8px; flex-wrap:wrap; margin:6px 0 }
+  .gpBtn {
+    padding:6px 10px;
+    font-size:13px;
+    border-radius:999px;
+    border:1px solid rgba(255,255,255,.14);
+    background: rgba(0,0,0,.25);
+  }
+  .gpBtn:hover { opacity:.85 }
+  .gpBtn.active {
+    border-color: rgba(125,211,252,.55);
+    background: rgba(125,211,252,.18);
+  }
 
-/* group picker */
-.gpRow { display:flex; gap:8px; flex-wrap:wrap; margin:6px 0 }
-.gpBtn {
-  padding:6px 10px;
-  font-size:13px;
-  border-radius:999px;
-  border:1px solid rgba(255,255,255,.14);
-  background: rgba(0,0,0,.25);
-}
-.gpBtn:hover { opacity:.85 }
-.gpBtn.active {
-  border-color: rgba(125,211,252,.55);
-  background: rgba(125,211,252,.18);
-}
+  .chip {
+    padding:6px 10px;
+    font-size:13px;
+    border-radius:999px;
+    border:1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.06);
+  }
+  .chip button {
+    margin-left:8px;
+    border:0;
+    background:transparent;
+    color:inherit;
+    cursor:pointer;
+    opacity:.7;
+  }
+  .chip button:hover { opacity:1 }
 
-.chip {
-  padding:6px 10px;
-  font-size:13px;
-  border-radius:999px;
-  border:1px solid rgba(255,255,255,.14);
-  background: rgba(255,255,255,.06);
-}
-.chip button {
-  margin-left:8px;
-  border:0;
-  background:transparent;
-  color:inherit;
-  cursor:pointer;
-  opacity:.7;
-}
-.chip button:hover { opacity:1 }
+  /* image drop */
+  #imgDrop { margin-top:10px; padding:12px; cursor:pointer; outline:none }
+  #imgDrop:focus {
+    border-color: rgba(125,211,252,.45);
+    box-shadow: 0 0 0 2px rgba(125,211,252,.12);
+  }
 
-/* image drop */
-#imgDrop { margin-top:10px; padding:12px; cursor:pointer; outline:none }
-#imgDrop:focus {
-  border-color: rgba(125,211,252,.45);
-  box-shadow: 0 0 0 2px rgba(125,211,252,.12);
-}
+  /* anchor comfort: do not hide behind anything */
+  #add-entry { scroll-margin-top: 12px; }
 </style>
 </head>
 
 <body>
 <div class="wrap">
 
-<h1>🧠 Sidebrain Helper</h1>
-<div class="muted">
-Create consistent Sidebrain entries. Copy & paste rows into Google Sheets.
-</div>
-
-<div class="card">
-  <div class="row">
-    <div class="grow">
-      <label>Spreadsheet / CSV URL</label>
-      <input id="sheetUrl" placeholder="Paste published CSV URL…" />
-      <div class="mini muted">Or via URL: <code>?sheet=ENCODED_URL</code></div>
-    </div>
-    <div style="min-width:200px">
-      <label>Database name</label>
-      <input id="dbName" placeholder="ART / PPL / …" />
-    </div>
-    <div style="display:flex;gap:10px;align-items:flex-end">
-      <button id="btnApply" class="primary">Apply</button>
-      <button id="btnCopyHelperLink" class="ghost">Copy helper link</button>
-    </div>
+  <h1>🧠 Sidebrain Helper</h1>
+  <div class="muted">
+    Create consistent Sidebrain entries. Copy & paste rows into Google Sheets or submit via Google Form (prefilled).
   </div>
-  <div id="status" class="mini muted" style="margin-top:10px"></div>
-</div>
 
-<div class="card">
-  <div class="grid2">
-    <div>
-      <label>Flash9 app link</label>
-      <pre id="appLink"></pre>
-      <button id="btnCopyAppLink" class="ghost">Copy app link</button>
-    </div>
-    <div>
-      <label>Detected CSV URL</label>
-      <pre id="csvUrlOut"></pre>
-      <button id="btnCopyCsv" class="ghost">Copy CSV URL</button>
-    </div>
-  </div>
-</div>
-
-<div class="card">
-<h2>Add entry</h2>
-
-<div class="grid2">
-  <div>
-    <label>NAME</label>
-    <input id="name" placeholder="Max Mustermann" />
-    <div id="nameMatches" class="mini muted" style="margin-top:6px"></div>
-  </div>
-  <div>
-    <label>GROUPS</label>
-    <input id="groups" placeholder="MUSIC:Composer UNI:mdw" />
-  </div>
-</div>
-
-<div class="mini muted" style="margin-top:8px">Pick groups from database:</div>
-<div id="groupPicker" class="card" style="padding:10px"></div>
-<div class="mini muted">Selected groups:</div>
-<div id="groupChips" class="row" style="margin-top:6px"></div>
-
-<div class="grid2" style="margin-top:10px">
-  <div>
-    <label>IMAGE URL or [TEXT]</label>
+  <!-- DATA SOURCE -->
+  <div class="card">
     <div class="row">
-      <input id="image" class="grow" placeholder="[Composer]" />
-      <button id="btnImgSearch" class="ghost">Image search</button>
-    </div>
-    <div id="imgDrop" class="card" tabindex="0">
-      <div class="mini muted">
-        Paste or drop an image here → stored as data URL
+      <div class="grow">
+        <label>CSV URL (published “output=csv”)</label>
+        <input id="sheetUrl" placeholder="Paste published CSV URL…" />
+        <div class="mini muted">Or via URL: <code>?sheet=ENCODED_URL</code></div>
       </div>
-      <div id="imgDropStatus" class="mini muted" style="margin-top:6px"></div>
+
+      <div style="min-width:200px">
+        <label>Database name (optional)</label>
+        <input id="dbName" placeholder="ART / PPL / …" />
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:flex-end">
+        <button id="btnApply" class="primary">Apply</button>
+        <button id="btnCopyHelperLink" class="ghost">Copy helper link (#add-entry)</button>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <div class="grow">
+        <label>Google Form URL (optional, for frictionless writing)</label>
+        <input id="formUrl" placeholder="https://docs.google.com/forms/d/e/.../viewform" />
+        <div class="mini muted">Or via URL: <code>?form=ENCODED_URL</code></div>
+      </div>
+    </div>
+
+    <div id="status" class="mini muted" style="margin-top:10px"></div>
+  </div>
+
+  <!-- LINKS -->
+  <div class="card">
+    <div class="grid2">
+      <div>
+        <label>Flash9 app link</label>
+        <pre id="appLink"></pre>
+        <button id="btnCopyAppLink" class="ghost">Copy app link</button>
+      </div>
+      <div>
+        <label>Detected CSV URL</label>
+        <pre id="csvUrlOut"></pre>
+        <button id="btnCopyCsv" class="ghost">Copy CSV URL</button>
+      </div>
     </div>
   </div>
-  <div>
-    <label>INFO (Markdown allowed)</label>
-    <input id="info" placeholder="violin [piece](https://…)" />
+
+  <!-- ADD ENTRY (ANCHOR) -->
+  <div class="card" id="add-entry">
+    <h2>Add entry</h2>
+
+    <div class="grid2">
+      <div>
+        <label>Vorname</label>
+        <input id="firstName" placeholder="Max" />
+      </div>
+      <div>
+        <label>Nachname</label>
+        <input id="lastName" placeholder="Mustermann" />
+      </div>
+    </div>
+
+    <div id="nameMatches" class="mini muted" style="margin-top:8px"></div>
+
+    <div style="margin-top:10px">
+      <label>GROUPS</label>
+      <input id="groups" placeholder="MUSIC:Composer UNI:mdw" />
+    </div>
+
+    <div class="mini muted" style="margin-top:8px">Pick groups from database:</div>
+    <div id="groupPicker" class="card" style="padding:10px"></div>
+
+    <div class="mini muted">Selected groups:</div>
+    <div id="groupChips" class="row" style="margin-top:6px"></div>
+
+    <div class="grid2" style="margin-top:10px">
+      <div>
+        <label>IMAGE URL or [TEXT]</label>
+        <div class="row">
+          <input id="image" class="grow" placeholder="[?]" />
+          <button id="btnImgSearch" class="ghost">Image search</button>
+        </div>
+
+        <div id="imgDrop" class="card" tabindex="0">
+          <div class="mini muted">
+            Paste or drop an image here → stored as data URL
+          </div>
+          <div id="imgDropStatus" class="mini muted" style="margin-top:6px"></div>
+        </div>
+      </div>
+
+      <div>
+        <label>INFO (Markdown allowed)</label>
+        <input id="info" placeholder="Just an example" />
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:12px">
+      <button id="btnMakeRow" class="primary">Generate row (TSV)</button>
+      <button id="btnCopyRow" class="ghost">Copy row</button>
+      <button id="btnOpenForm" class="ghost">Open Google Form (prefilled)</button>
+      <button id="btnClear" class="ghost">Clear</button>
+    </div>
+
+    <div style="margin-top:12px">
+      <label>Row output (TAB-separated: NAME, GROUPS, IMAGE, INFO)</label>
+      <pre id="rowOut"></pre>
+    </div>
+
+    <div id="formStatus" class="mini muted" style="margin-top:8px"></div>
   </div>
-</div>
-
-<div style="margin-top:12px">
-  <button id="btnMakeRow" class="primary">Generate row</button>
-  <button id="btnClear" class="ghost">Clear</button>
-</div>
-
-<div style="margin-top:12px">
-  <label>Row output (TAB-separated)</label>
-  <pre id="rowOut"></pre>
-  <button id="btnCopyRow" class="ghost">Copy row</button>
-</div>
-</div>
 
 </div>
 
 <script>
-const el = id => document.getElementById(id);
-const qp = n => new URL(location.href).searchParams.get(n);
+  const el = id => document.getElementById(id);
+  const qp = n => new URL(location.href).searchParams.get(n);
 
-let loadedRows = [];
-let groupTree = null;
-let pickerPath = [];
-let selectedTokens = new Set();
+  // ---- Google Form entry IDs from your prefill link ----
+  const FORM_ENTRIES = {
+    firstName: "entry.480899959",
+    lastName:  "entry.182545869",
+    groups:    "entry.368916147",
+    info:      "entry.2065530473",
+    image:     "entry.224579089"
+  };
 
-/* status */
-function setStatus(msg, cls="muted"){
-  const s=el("status"); s.className="mini "+cls; s.textContent=msg||"";
-}
-function setImgDropStatus(msg, cls="muted"){
-  const s=el("imgDropStatus"); s.className="mini "+cls; s.textContent=msg||"";
-}
+  let loadedRows = [];
+  let groupTree = null;
+  let pickerPath = [];
+  let selectedTokens = new Set();
 
-/* CSV */
-function detectDelimiter(t){
-  const l=t.split(/\r?\n/).find(x=>x.trim())||"";
-  if(l.includes("\t"))return"\t";
-  if(l.includes(";"))return";";
-  return",";
-}
-function parseDelimited(t,d){
-  const r=[]; let row=[],f="",q=false;
-  for(let i=0;i<t.length;i++){
-    const c=t[i],n=t[i+1];
-    if(q){
-      if(c=='"'&&n=='"'){f+='"';i++}
-      else if(c=='"')q=false; else f+=c;
-      continue;
+  function setStatus(msg, cls="muted") {
+    const s = el("status");
+    s.className = "mini " + cls;
+    s.textContent = msg || "";
+  }
+  function setImgDropStatus(msg, cls="muted") {
+    const s = el("imgDropStatus");
+    s.className = "mini " + cls;
+    s.textContent = msg || "";
+  }
+  function setFormStatus(msg, cls="muted") {
+    const s = el("formStatus");
+    s.className = "mini " + cls;
+    s.textContent = msg || "";
+  }
+
+  function copyText(txt) {
+    return navigator.clipboard.writeText(txt);
+  }
+
+  // ---------- name handling ----------
+  function getFullName() {
+    const fn = (el("firstName").value || "").trim();
+    const ln = (el("lastName").value || "").trim();
+    return (fn + " " + ln).trim();
+  }
+
+  function splitFullNameToFields(full) {
+    const s = String(full || "").trim();
+    if (!s) return { fn: "", ln: "" };
+    const parts = s.split(/\s+/);
+    if (parts.length === 1) return { fn: parts[0], ln: "" };
+    return { fn: parts.slice(0, -1).join(" "), ln: parts[parts.length - 1] };
+  }
+
+  // ---------- CSV parsing ----------
+  function detectDelimiter(t) {
+    const l = t.split(/\r?\n/).find(x => x.trim()) || "";
+    if (l.includes("\t")) return "\t";
+    if (l.includes(";")) return ";";
+    return ",";
+  }
+
+  function parseDelimited(t, d) {
+    const rows = [];
+    let row = [];
+    let field = "";
+    let inQuotes = false;
+
+    const pushField = () => { row.push(field); field = ""; };
+    const pushRow = () => { rows.push(row); row = []; };
+
+    for (let i = 0; i < t.length; i++) {
+      const c = t[i];
+      const n = t[i + 1];
+
+      if (inQuotes) {
+        if (c === '"' && n === '"') { field += '"'; i++; }
+        else if (c === '"') inQuotes = false;
+        else field += c;
+        continue;
+      }
+
+      if (c === '"') { inQuotes = true; continue; }
+      if (c === d) { pushField(); continue; }
+      if (c === "\n") { pushField(); pushRow(); continue; }
+      if (c === "\r") continue;
+
+      field += c;
     }
-    if(c=='"'){q=true;continue}
-    if(c==d){row.push(f);f="";continue}
-    if(c=="\n"){row.push(f);r.push(row);row=[];f="";continue}
-    if(c!="\r")f+=c;
-  }
-  row.push(f); r.push(row);
-  return r.filter(x=>x.some(c=>String(c).trim()));
-}
 
-/* group tree */
-function splitGroups(s){return String(s||"").trim().split(/\s+/).filter(Boolean)}
-function buildTree(tokens){
-  const root={children:new Map()};
-  for(const t of tokens){
-    const p=t.split(":").map(x=>x.trim());
-    let n=root,acc="";
-    for(const x of p){
-      acc=acc?acc+":"+x:x;
-      if(!n.children.has(x))n.children.set(x,{id:acc,label:x,children:new Map()});
-      n=n.children.get(x);
+    pushField();
+    pushRow();
+
+    return rows.filter(r => r.some(c => String(c).trim()));
+  }
+
+  // ---------- group tree ----------
+  function splitGroups(s) {
+    return String(s || "").trim().split(/\s+/).filter(Boolean);
+  }
+
+  function buildTree(tokens) {
+    const root = { children: new Map() };
+    for (const t of tokens) {
+      const parts = t.split(":").map(x => x.trim()).filter(Boolean);
+      let node = root;
+      let acc = "";
+      for (const p of parts) {
+        acc = acc ? acc + ":" + p : p;
+        if (!node.children.has(p)) node.children.set(p, { id: acc, label: p, children: new Map() });
+        node = node.children.get(p);
+      }
     }
-  }
-  return root;
-}
-function syncInput(){el("groups").value=[...selectedTokens].sort().join(" ")}
-function syncFromInput(){selectedTokens=new Set(splitGroups(el("groups").value))}
-
-/* picker render */
-function renderPicker(){
-  const h=el("groupPicker"),c=el("groupChips");
-  h.innerHTML=""; c.innerHTML="";
-  if(!groupTree){h.innerHTML='<div class="mini muted">Load CSV first.</div>';return}
-
-  let n=groupTree;
-  for(const p of pickerPath) if(n.children.has(p)) n=n.children.get(p);
-
-  const crumb=document.createElement("div");
-  crumb.className="mini muted";
-  crumb.textContent="Browse: "+(pickerPath.join(" : ")||"(root)");
-  h.appendChild(crumb);
-
-  const row=document.createElement("div"); row.className="gpRow";
-  if(pickerPath.length){
-    const b=document.createElement("button");
-    b.className="gpBtn"; b.textContent="← back";
-    b.onclick=()=>{pickerPath.pop();renderPicker()};
-    row.appendChild(b);
-  }
-  [...n.children.values()].sort((a,b)=>a.label.localeCompare(b.label)).forEach(ch=>{
-    const b=document.createElement("button");
-    b.className="gpBtn"; b.textContent=ch.label;
-    b.onclick=()=>{pickerPath.push(ch.label);renderPicker()};
-    row.appendChild(b);
-  });
-  h.appendChild(row);
-
-  if(n.id){
-    const a=document.createElement("button");
-    a.className="gpBtn active"; a.textContent=`＋ add "${n.id}"`;
-    a.onclick=()=>{selectedTokens.add(n.id);syncInput();renderPicker()};
-    h.appendChild(a);
+    return root;
   }
 
-  [...selectedTokens].sort().forEach(t=>{
-    const s=document.createElement("span"); s.className="chip"; s.textContent=t;
-    const x=document.createElement("button"); x.textContent="×";
-    x.onclick=()=>{selectedTokens.delete(t);syncInput();renderPicker()};
-    s.appendChild(x); c.appendChild(s);
-  });
-}
+  function syncInput() {
+    el("groups").value = [...selectedTokens].sort().join(" ");
+  }
+  function syncFromInput() {
+    selectedTokens = new Set(splitGroups(el("groups").value));
+  }
 
-/* name matching */
-function norm(s){return String(s||"").toLowerCase()}
-function escapeHtml(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+  function renderPicker() {
+    const h = el("groupPicker");
+    const c = el("groupChips");
+    h.innerHTML = "";
+    c.innerHTML = "";
 
-function renderNameMatches(){
-  const box=el("nameMatches");
-  const q=norm(el("name").value);
-  if(q.length<2||!loadedRows.length){box.textContent="";return}
-  const m=loadedRows
-    .map(r=>({name:r[0]||"",groups:r[1]||"",image:r[2]||"",info:r[3]||""}))
-    .filter(x=>norm(x.name).includes(q)).slice(0,8);
-  if(!m.length){box.textContent="No existing entries.";return}
+    if (!groupTree) {
+      h.innerHTML = '<div class="mini muted">Load CSV first to enable suggestions.</div>';
+      return;
+    }
 
-  box.innerHTML="<div class='mini muted'>Existing entries:</div>"+
-    m.map((e,i)=>`
-      <div>
-        <button class="gpBtn" data-i="${i}" style="font-size:12px">${escapeHtml(e.name)}</button>
-        <span class="mini muted"> ${escapeHtml(e.groups)}</span>
-      </div>`).join("");
+    let node = groupTree;
+    for (const part of pickerPath) if (node.children.has(part)) node = node.children.get(part);
 
-  box.querySelectorAll("button").forEach(b=>{
-    b.onclick=()=>{
-      const e=m[b.dataset.i];
-      el("name").value=e.name;
-      el("groups").value=e.groups;
-      el("image").value=e.image;
-      el("info").value=e.info;
-      syncFromInput(); pickerPath=[]; renderPicker();
-      setStatus("Loaded existing entry.","ok");
+    const crumb = document.createElement("div");
+    crumb.className = "mini muted";
+    crumb.textContent = "Browse: " + (pickerPath.join(" : ") || "(root)");
+    h.appendChild(crumb);
+
+    const row = document.createElement("div");
+    row.className = "gpRow";
+
+    if (pickerPath.length) {
+      const back = document.createElement("button");
+      back.className = "gpBtn";
+      back.textContent = "← back";
+      back.onclick = () => { pickerPath.pop(); renderPicker(); };
+      row.appendChild(back);
+    }
+
+    [...node.children.values()]
+      .sort((a, b) => a.label.localeCompare(b.label))
+      .forEach(ch => {
+        const b = document.createElement("button");
+        b.className = "gpBtn";
+        b.textContent = ch.label;
+        b.onclick = () => { pickerPath.push(ch.label); renderPicker(); };
+        row.appendChild(b);
+      });
+
+    h.appendChild(row);
+
+    if (node.id) {
+      const add = document.createElement("button");
+      add.className = "gpBtn active";
+      add.textContent = `＋ add "${node.id}"`;
+      add.onclick = () => { selectedTokens.add(node.id); syncInput(); renderPicker(); };
+      h.appendChild(add);
+    }
+
+    [...selectedTokens].sort().forEach(t => {
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      chip.textContent = t;
+
+      const x = document.createElement("button");
+      x.textContent = "×";
+      x.title = "remove";
+      x.onclick = () => { selectedTokens.delete(t); syncInput(); renderPicker(); };
+
+      chip.appendChild(x);
+      c.appendChild(chip);
+    });
+  }
+
+  // ---------- name matching ----------
+  function norm(s) { return String(s || "").toLowerCase().trim(); }
+  function escapeHtml(s) {
+    return String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function renderNameMatches() {
+    const box = el("nameMatches");
+    const q = norm(getFullName());
+    if (q.length < 2 || !loadedRows.length) { box.textContent = ""; return; }
+
+    const matches = loadedRows
+      .map(r => ({
+        name: String(r[0] || "").trim(),
+        groups: String(r[1] || "").trim(),
+        image: String(r[2] || "").trim(),
+        info: String(r[3] || "").trim()
+      }))
+      .filter(x => norm(x.name).includes(q))
+      .slice(0, 8);
+
+    if (!matches.length) {
+      box.textContent = "No existing entries match.";
+      return;
+    }
+
+    box.innerHTML =
+      `<div class="mini muted" style="margin-bottom:4px">Existing entries:</div>` +
+      matches.map((m, i) => `
+        <div style="margin:2px 0">
+          <button class="gpBtn" data-i="${i}" style="padding:4px 8px;font-size:12px">${escapeHtml(m.name)}</button>
+          <span class="mini muted"> ${escapeHtml(m.groups)}</span>
+        </div>
+      `).join("");
+
+    box.querySelectorAll("button[data-i]").forEach(btn => {
+      btn.onclick = () => {
+        const i = Number(btn.getAttribute("data-i"));
+        const m = matches[i];
+        if (!m) return;
+
+        const parts = splitFullNameToFields(m.name);
+        el("firstName").value = parts.fn;
+        el("lastName").value = parts.ln;
+
+        el("groups").value = m.groups;
+        el("image").value = m.image || "";
+        el("info").value = m.info || "";
+
+        syncFromInput();
+        pickerPath = [];
+        renderPicker();
+
+        setStatus("Loaded existing entry into the form.", "ok");
+        renderNameMatches();
+      };
+    });
+  }
+
+  // ---------- load CSV ----------
+  async function tryLoadCsv(url) {
+    loadedRows = [];
+    groupTree = null;
+    pickerPath = [];
+    renderPicker();
+    renderNameMatches();
+
+    if (!url || !url.includes("output=csv")) {
+      setStatus("Paste a published CSV URL (output=csv) to enable suggestions.", "muted");
+      return;
+    }
+
+    try {
+      setStatus("Loading CSV…", "warn");
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const txt = await res.text();
+      const rows = parseDelimited(txt, detectDelimiter(txt));
+      loadedRows = rows;
+
+      const tokens = [];
+      rows.forEach(r => splitGroups(r[1]).forEach(g => tokens.push(g)));
+
+      groupTree = buildTree(tokens);
+      syncFromInput();
+      renderPicker();
       renderNameMatches();
-    };
-  });
-}
 
-/* CSV load */
-async function tryLoadCsv(url){
-  loadedRows=[]; groupTree=null; pickerPath=[];
-  renderPicker(); renderNameMatches();
-  if(!url||!url.includes("csv"))return;
-  try{
-    setStatus("Loading CSV…","warn");
-    const r=await fetch(url,{cache:"no-store"});
-    const t=await r.text();
-    const rows=parseDelimited(t,detectDelimiter(t));
-    loadedRows=rows;
-    const tokens=[];
-    rows.forEach(r=>splitGroups(r[1]).forEach(g=>tokens.push(g)));
-    groupTree=buildTree(tokens);
-    syncFromInput(); renderPicker(); renderNameMatches();
-    setStatus("CSV loaded.","ok");
-  }catch(e){
-    setStatus("CSV load failed.","warn");
+      setStatus("CSV loaded. Suggestions ready.", "ok");
+    } catch (e) {
+      console.error(e);
+      loadedRows = [];
+      groupTree = null;
+      renderPicker();
+      renderNameMatches();
+      setStatus("CSV load failed (check if URL is public + output=csv).", "warn");
+    }
   }
-}
 
-/* image */
-el("btnImgSearch").onclick=()=>{
-  const q=encodeURIComponent((el("name").value||"portrait")+" portrait");
-  window.open("https://www.google.com/search?tbm=isch&q="+q,"_blank");
-};
-
-async function fileToDataUrl(f){
-  const i=new Image(),u=URL.createObjectURL(f);
-  await new Promise((r,j)=>{i.onload=r;i.onerror=j;i.src=u});
-  const s=Math.min(1,512/i.width);
-  const c=document.createElement("canvas");
-  c.width=i.width*s; c.height=i.height*s;
-  c.getContext("2d").drawImage(i,0,0,c.width,c.height);
-  URL.revokeObjectURL(u);
-  return c.toDataURL("image/jpeg",0.85);
-}
-async function handleImage(b){
-  try{
-    setImgDropStatus("Processing…","warn");
-    el("image").value=await fileToDataUrl(b);
-    setImgDropStatus("Image inserted.","ok");
-  }catch{setImgDropStatus("Image failed.","err")}
-}
-(function(){
-  const z=el("imgDrop");
-  z.onclick=()=>z.focus();
-  z.onpaste=e=>{
-    for(const it of e.clipboardData.items)
-      if(it.type.startsWith("image")){handleImage(it.getAsFile());e.preventDefault()}
+  // ---------- image search + paste/drop ----------
+  el("btnImgSearch").onclick = () => {
+    const q = encodeURIComponent((getFullName() || "portrait") + " portrait");
+    window.open("https://www.google.com/search?tbm=isch&q=" + q, "_blank", "noopener,noreferrer");
   };
-  z.ondragover=e=>{e.preventDefault();z.style.opacity=.85};
-  z.ondragleave=()=>z.style.opacity=1;
-  z.ondrop=e=>{
-    e.preventDefault();z.style.opacity=1;
-    if(e.dataTransfer.files[0])handleImage(e.dataTransfer.files[0]);
+
+  async function fileToDataUrl(file, maxW = 512, quality = 0.85) {
+    const img = new Image();
+    const blobUrl = URL.createObjectURL(file);
+
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = blobUrl;
+    });
+
+    const scale = Math.min(1, maxW / img.width);
+    const w = Math.round(img.width * scale);
+    const h = Math.round(img.height * scale);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+
+    URL.revokeObjectURL(blobUrl);
+    return canvas.toDataURL("image/jpeg", quality);
+  }
+
+  async function handleImage(file) {
+    try {
+      setImgDropStatus("Processing image…", "warn");
+      const dataUrl = await fileToDataUrl(file, 512, 0.85);
+      el("image").value = dataUrl;
+      setImgDropStatus("Image inserted into IMAGE field (data URL).", "ok");
+    } catch (e) {
+      console.error(e);
+      setImgDropStatus("Image processing failed.", "err");
+    }
+  }
+
+  (function wireImagePasteDrop() {
+    const z = el("imgDrop");
+    z.onclick = () => z.focus();
+
+    z.addEventListener("paste", async (e) => {
+      const items = e.clipboardData?.items || [];
+      for (const it of items) {
+        if (it.type && it.type.startsWith("image/")) {
+          const f = it.getAsFile();
+          if (f) await handleImage(f);
+          e.preventDefault();
+          return;
+        }
+      }
+      setImgDropStatus("No image found in clipboard. Copy an image first.", "warn");
+    });
+
+    z.addEventListener("dragover", (e) => { e.preventDefault(); z.style.opacity = "0.85"; });
+    z.addEventListener("dragleave", () => { z.style.opacity = "1"; });
+
+    z.addEventListener("drop", async (e) => {
+      e.preventDefault();
+      z.style.opacity = "1";
+      const f = e.dataTransfer?.files?.[0];
+      if (f && f.type && f.type.startsWith("image/")) await handleImage(f);
+      else setImgDropStatus("That doesn’t look like an image file.", "warn");
+    });
+
+    setImgDropStatus("Click here, then paste an image (⌘V / Ctrl+V), or drag & drop.", "muted");
+  })();
+
+  // ---------- row generation ----------
+  function tsvCell(s) {
+    return String(s || "").replace(/\t/g, " ").replace(/\r?\n/g, " ").trim();
+  }
+
+  function buildTsvRow() {
+    const name = getFullName();
+    const groups = (el("groups").value || "").trim();
+    const image = (el("image").value || "").trim();
+    const info = (el("info").value || "").trim();
+
+    if (!name) return "";
+
+    return [name, groups, image, info].map(tsvCell).join("\t");
+  }
+
+  function ensureImageDefaultPlaceholder() {
+    // If empty, nudge to "[?]" so missing images are searchable
+    const v = (el("image").value || "").trim();
+    if (!v) el("image").value = "[?]";
+  }
+
+  el("btnMakeRow").onclick = () => {
+    ensureImageDefaultPlaceholder();
+    const row = buildTsvRow();
+    if (!row) { setStatus("Please enter Vorname/Nachname.", "err"); return; }
+    el("rowOut").textContent = row;
+    setStatus("Row generated.", "ok");
   };
-})();
 
-/* rows */
-function tsv(s){return String(s||"").replace(/\t|\n/g," ").trim()}
-el("btnMakeRow").onclick=()=>{
-  if(!el("name").value.trim()){setStatus("NAME required.","err");return}
-  el("rowOut").textContent=[
-    el("name").value, el("groups").value,
-    el("image").value, el("info").value
-  ].map(tsv).join("\t");
-  setStatus("Row generated.","ok");
-};
-el("btnCopyRow").onclick=()=>navigator.clipboard.writeText(el("rowOut").textContent||"");
+  el("btnCopyRow").onclick = async () => {
+    const txt = el("rowOut").textContent || "";
+    if (!txt.trim()) {
+      ensureImageDefaultPlaceholder();
+      const row = buildTsvRow();
+      if (!row) { setStatus("Please enter Vorname/Nachname.", "err"); return; }
+      el("rowOut").textContent = row;
+    }
+    try {
+      await copyText(el("rowOut").textContent);
+      setStatus("Row copied (TSV).", "ok");
+    } catch {
+      setStatus("Could not copy (clipboard blocked).", "warn");
+    }
+  };
 
-/* misc */
-el("btnClear").onclick=()=>{
-  ["name","groups","image","info"].forEach(id=>el(id).value="");
-  selectedTokens.clear(); pickerPath=[]; renderPicker();
-  el("rowOut").textContent=""; setStatus("Cleared.","ok");
-};
-el("name").oninput=renderNameMatches;
-el("groups").oninput=()=>{syncFromInput();renderPicker()};
+  el("btnClear").onclick = () => {
+    el("firstName").value = "";
+    el("lastName").value = "";
+    el("groups").value = "";
+    el("image").value = "";
+    el("info").value = "";
+    el("rowOut").textContent = "";
 
-function makeAppLink(csv,db){
-  const u=new URL(location.href.replace(/helper\.html.*/,"index.html"));
-  if(csv)u.searchParams.set("csv",csv);
-  if(db)u.searchParams.set("database",db);
-  return u.toString();
-}
+    selectedTokens.clear();
+    pickerPath = [];
+    renderPicker();
+    renderNameMatches();
 
-el("btnApply").onclick=()=>{
-  const s=el("sheetUrl").value.trim();
-  el("csvUrlOut").textContent=s||"(none)";
-  el("appLink").textContent=s?makeAppLink(s,el("dbName").value):"(paste CSV URL)";
-  tryLoadCsv(s);
-};
+    setFormStatus("", "muted");
+    setImgDropStatus("Click here, then paste an image (⌘V / Ctrl+V), or drag & drop.", "muted");
+    setStatus("Cleared.", "ok");
 
-(function init(){
-  const s=qp("sheet"),d=qp("database");
-  if(s)el("sheetUrl").value=s;
-  if(d)el("dbName").value=d;
-  el("btnApply").click();
-})();
+    el("firstName").focus();
+  };
+
+  // ---------- links ----------
+  function makeAppLink(csv, db) {
+    const base = location.href.replace(/helper\.html.*/i, "index.html");
+    const u = new URL(base);
+    if (db) u.searchParams.set("database", db);
+    if (csv) u.searchParams.set("csv", csv);
+    return u.toString();
+  }
+
+  function makeHelperLink(sheetUrl, dbName, formUrl) {
+    const u = new URL(location.href.replace(/#.*$/, ""));
+    if (sheetUrl) u.searchParams.set("sheet", sheetUrl);
+    if (dbName) u.searchParams.set("database", dbName);
+    if (formUrl) u.searchParams.set("form", formUrl);
+    // always jump to add entry:
+    return u.toString() + "#add-entry";
+  }
+
+  el("btnCopyCsv").onclick = async () => {
+    const txt = el("csvUrlOut").textContent || "";
+    if (!txt.trim() || txt.startsWith("(")) return;
+    try { await copyText(txt); setStatus("CSV URL copied.", "ok"); }
+    catch { setStatus("Could not copy CSV URL.", "warn"); }
+  };
+
+  el("btnCopyAppLink").onclick = async () => {
+    const txt = el("appLink").textContent || "";
+    if (!txt.trim() || txt.startsWith("(")) return;
+    try { await copyText(txt); setStatus("App link copied.", "ok"); }
+    catch { setStatus("Could not copy app link.", "warn"); }
+  };
+
+  el("btnCopyHelperLink").onclick = async () => {
+    const link = makeHelperLink(el("sheetUrl").value.trim(), el("dbName").value.trim(), el("formUrl").value.trim());
+    try { await copyText(link); setStatus("Helper link copied (#add-entry).", "ok"); }
+    catch { setStatus("Could not copy helper link.", "warn"); }
+  };
+
+  // ---------- Google Form prefill ----------
+  function normalizeFormBaseUrl(raw) {
+    const s = String(raw || "").trim();
+    if (!s) return "";
+
+    // Use URL() to normalize; remove any existing query parameters
+    try {
+      const u = new URL(s);
+      u.search = "";
+      return u.toString();
+    } catch {
+      return s;
+    }
+  }
+
+  function buildPrefilledFormUrl() {
+    const base = normalizeFormBaseUrl(el("formUrl").value);
+    if (!base) return "";
+
+    ensureImageDefaultPlaceholder();
+
+    const u = new URL(base);
+    u.searchParams.set(FORM_ENTRIES.firstName, el("firstName").value || "");
+    u.searchParams.set(FORM_ENTRIES.lastName,  el("lastName").value || "");
+    u.searchParams.set(FORM_ENTRIES.groups,    el("groups").value || "");
+    u.searchParams.set(FORM_ENTRIES.info,      el("info").value || "");
+    u.searchParams.set(FORM_ENTRIES.image,     el("image").value || "");
+
+    return u.toString();
+  }
+
+  el("btnOpenForm").onclick = () => {
+    const url = buildPrefilledFormUrl();
+    if (!url) {
+      setFormStatus("No form URL set. Paste it above (or use ?form=...)", "warn");
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
+    setFormStatus("Opened Google Form (prefilled) in a new tab.", "ok");
+  };
+
+  // ---------- wiring ----------
+  function onNameInput() { renderNameMatches(); }
+
+  el("firstName").addEventListener("input", onNameInput);
+  el("lastName").addEventListener("input", onNameInput);
+
+  el("groups").addEventListener("input", () => {
+    syncFromInput();
+    renderPicker();
+  });
+
+  // ---------- apply ----------
+  el("btnApply").onclick = () => {
+    const sheet = el("sheetUrl").value.trim();
+    const db = el("dbName").value.trim();
+
+    el("csvUrlOut").textContent = sheet || "(none)";
+    el("appLink").textContent = sheet ? makeAppLink(sheet, db) : "(paste CSV URL above)";
+
+    tryLoadCsv(sheet);
+    setFormStatus("", "muted");
+  };
+
+  // ---------- init ----------
+  (function init() {
+    // read params
+    const sheet = qp("sheet");
+    const db = qp("database") || "";
+    const form = qp("form");
+
+    if (sheet) el("sheetUrl").value = sheet;
+    if (db) el("dbName").value = db;
+    if (form) el("formUrl").value = form;
+
+    // apply once
+    el("btnApply").click();
+
+    // anchor jump
+    if (location.hash === "#add-entry") {
+      setTimeout(() => {
+        const a = document.getElementById("add-entry");
+        if (a) a.scrollIntoView({ behavior: "smooth", block: "start" });
+        setTimeout(() => el("firstName").focus(), 150);
+      }, 60);
+    }
+  })();
 </script>
 </body>
 </html>
