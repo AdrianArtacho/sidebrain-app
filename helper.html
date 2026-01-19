@@ -97,6 +97,19 @@
       opacity: .7;
     }
     .chip button:hover { opacity: 1; }
+
+    /* Image paste/drop zone */
+    #imgDrop {
+      margin-top: 10px;
+      padding: 12px;
+      cursor: pointer;
+      user-select: none;
+      outline: none;
+    }
+    #imgDrop:focus {
+      border-color: rgba(125,211,252,.45);
+      box-shadow: 0 0 0 2px rgba(125,211,252,.12);
+    }
   </style>
 </head>
 
@@ -175,8 +188,23 @@
     <div class="grid2" style="margin-top:10px">
       <div>
         <label>IMAGE URL or [TEXT]</label>
-        <input id="image" placeholder="[Composer]" />
+        <div class="row" style="align-items:stretch">
+          <input id="image" class="grow" placeholder="[Composer]" />
+          <button id="btnImgSearch" class="ghost" style="height:40px">Image search</button>
+        </div>
+        <div class="mini muted" style="margin-top:6px">
+          Tip: Click “Image search”, copy an image (not the URL), then come back and paste/drop it below.
+        </div>
+
+        <!-- Paste/Drop Zone -->
+        <div id="imgDrop" class="card" tabindex="0">
+          <div class="mini muted">
+            Paste or drop an image here to auto-fill the IMAGE field (stores as a data URL).
+          </div>
+          <div id="imgDropStatus" class="mini muted" style="margin-top:6px"></div>
+        </div>
       </div>
+
       <div>
         <label>INFO (Markdown links allowed)</label>
         <input id="info" placeholder="violin [piece](https://open.spotify.com/…)" />
@@ -208,6 +236,13 @@ function setStatus(msg, cls="muted") {
   s.textContent = msg || "";
 }
 
+function setImgDropStatus(msg, cls="muted") {
+  const s = el("imgDropStatus");
+  if (!s) return;
+  s.className = "mini " + cls;
+  s.textContent = msg || "";
+}
+
 function copyText(txt) {
   return navigator.clipboard.writeText(txt);
 }
@@ -221,101 +256,119 @@ function detectDelimiter(text) {
 }
 
 function parseDelimited(text, d) {
-  const rows=[], r=[], f={v:""}, out=()=>{r.push(f.v);f.v="";};
-  let q=false;
-  for (let i=0;i<text.length;i++){
-    const c=text[i], n=text[i+1];
-    if(q){
-      if(c==='"'&&n==='"'){f.v+='"';i++;}
-      else if(c==='"') q=false;
-      else f.v+=c;
+  const rows = [];
+  let row = [];
+  let field = "";
+  let inQuotes = false;
+
+  const pushField = () => { row.push(field); field = ""; };
+  const pushRow = () => { rows.push(row); row = []; };
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    const n = text[i + 1];
+
+    if (inQuotes) {
+      if (c === '"' && n === '"') { field += '"'; i++; }
+      else if (c === '"') inQuotes = false;
+      else field += c;
       continue;
     }
-    if(c==='"'){q=true;continue;}
-    if(c===d){out();continue;}
-    if(c==="\n"){out();rows.push([...r]);r.length=0;continue;}
-    if(c==="\r")continue;
-    f.v+=c;
+
+    if (c === '"') { inQuotes = true; continue; }
+    if (c === d) { pushField(); continue; }
+    if (c === "\n") { pushField(); pushRow(); continue; }
+    if (c === "\r") continue;
+
+    field += c;
   }
-  out(); rows.push([...r]);
-  return rows.filter(r=>r.some(c=>String(c).trim()));
+
+  pushField();
+  pushRow();
+
+  return rows.filter(r => r.some(c => String(c).trim()));
 }
 
 /* ---------------- group picker ---------------- */
-let groupTree=null;
-let pickerPath=[];
-let selectedTokens=new Set();
+let groupTree = null;
+let pickerPath = [];
+let selectedTokens = new Set();
 
-function splitGroups(s){return String(s||"").trim().split(/\s+/).filter(Boolean);}
+function splitGroups(s) {
+  return String(s || "").trim().split(/\s+/).filter(Boolean);
+}
 
-function buildTree(tokens){
-  const root={id:null,label:null,children:new Map()};
-  for(const t of tokens){
-    const parts=t.split(":");
-    let n=root, acc="";
-    for(const p of parts){
-      acc=acc?acc+":"+p:p;
-      if(!n.children.has(p)) n.children.set(p,{id:acc,label:p,children:new Map()});
-      n=n.children.get(p);
+function buildTree(tokens) {
+  const root = { id: null, label: null, children: new Map() };
+  for (const t of tokens) {
+    const parts = t.split(":").map(x => x.trim()).filter(Boolean);
+    let node = root;
+    let acc = "";
+    for (const p of parts) {
+      acc = acc ? acc + ":" + p : p;
+      if (!node.children.has(p)) node.children.set(p, { id: acc, label: p, children: new Map() });
+      node = node.children.get(p);
     }
   }
   return root;
 }
 
-function syncInput(){
-  el("groups").value=[...selectedTokens].sort().join(" ");
+function syncInput() {
+  el("groups").value = [...selectedTokens].sort().join(" ");
 }
 
-function syncFromInput(){
-  selectedTokens=new Set(splitGroups(el("groups").value));
+function syncFromInput() {
+  selectedTokens = new Set(splitGroups(el("groups").value));
 }
 
-function renderPicker(){
-  const host=el("groupPicker"), chips=el("groupChips");
-  host.innerHTML=""; chips.innerHTML="";
+function renderPicker() {
+  const host = el("groupPicker");
+  const chips = el("groupChips");
+  host.innerHTML = "";
+  chips.innerHTML = "";
 
-  if(!groupTree){
-    host.innerHTML='<div class="mini muted">Load a CSV to enable group suggestions.</div>';
+  if (!groupTree) {
+    host.innerHTML = '<div class="mini muted">Load a CSV to enable group suggestions.</div>';
     return;
   }
 
-  let node=groupTree;
-  for(const p of pickerPath){
-    if(node.children.has(p)) node=node.children.get(p);
+  // locate current node
+  let node = groupTree;
+  for (const part of pickerPath) {
+    if (node.children.has(part)) node = node.children.get(part);
   }
 
-  const crumb=document.createElement("div");
-  crumb.className="mini muted";
-  crumb.textContent="Browse: "+(pickerPath.join(" : ")||"(root)");
+  const crumb = document.createElement("div");
+  crumb.className = "mini muted";
+  crumb.textContent = "Browse: " + (pickerPath.join(" : ") || "(root)");
   host.appendChild(crumb);
 
-  const row=document.createElement("div");
-  row.className="gpRow";
+  const row = document.createElement("div");
+  row.className = "gpRow";
 
-  if(pickerPath.length){
-    const back=document.createElement("button");
-    back.className="gpBtn";
-    back.textContent="← back";
-    back.onclick=()=>{pickerPath.pop();renderPicker();};
+  if (pickerPath.length) {
+    const back = document.createElement("button");
+    back.className = "gpBtn";
+    back.textContent = "← back";
+    back.onclick = () => { pickerPath.pop(); renderPicker(); };
     row.appendChild(back);
   }
 
-  [...node.children.values()].sort((a,b)=>a.label.localeCompare(b.label))
-    .forEach(ch=>{
-      const b=document.createElement("button");
-      b.className="gpBtn";
-      b.textContent=ch.label;
-      b.onclick=()=>{pickerPath.push(ch.label);renderPicker();};
-      row.appendChild(b);
-    });
+  [...node.children.values()].sort((a, b) => a.label.localeCompare(b.label)).forEach(ch => {
+    const b = document.createElement("button");
+    b.className = "gpBtn";
+    b.textContent = ch.label;
+    b.onclick = () => { pickerPath.push(ch.label); renderPicker(); };
+    row.appendChild(b);
+  });
 
   host.appendChild(row);
 
-  if(node.id){
-    const add=document.createElement("button");
-    add.className="gpBtn active";
-    add.textContent=`＋ add "${node.id}"`;
-    add.onclick=()=>{
+  if (node.id) {
+    const add = document.createElement("button");
+    add.className = "gpBtn active";
+    add.textContent = `＋ add "${node.id}"`;
+    add.onclick = () => {
       selectedTokens.add(node.id);
       syncInput();
       renderPicker();
@@ -323,94 +376,250 @@ function renderPicker(){
     host.appendChild(add);
   }
 
-  [...selectedTokens].sort().forEach(t=>{
-    const c=document.createElement("span");
-    c.className="chip";
-    c.textContent=t;
-    const x=document.createElement("button");
-    x.textContent="×";
-    x.onclick=()=>{
+  [...selectedTokens].sort().forEach(t => {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.textContent = t;
+
+    const x = document.createElement("button");
+    x.textContent = "×";
+    x.title = "remove";
+    x.onclick = () => {
       selectedTokens.delete(t);
       syncInput();
       renderPicker();
     };
-    c.appendChild(x);
-    chips.appendChild(c);
+
+    chip.appendChild(x);
+    chips.appendChild(chip);
   });
 }
 
-/* ---------------- main flow ---------------- */
-async function tryLoadCsv(csvUrl){
-  groupTree=null;
-  pickerPath=[];
-  selectedTokens.clear();
+async function tryLoadCsv(csvUrl) {
+  groupTree = null;
+  pickerPath = [];
 
-  if(!csvUrl||!csvUrl.includes("output=csv")){
-    renderPicker(); return;
+  if (!csvUrl || !csvUrl.includes("output=csv")) {
+    renderPicker();
+    return;
   }
 
-  try{
-    setStatus("Loading CSV for group suggestions…","warn");
-    const res=await fetch(csvUrl,{cache:"no-store"});
-    const txt=await res.text();
-    const rows=parseDelimited(txt,detectDelimiter(txt));
-    const tokens=[];
-    rows.forEach(r=>splitGroups(r[1]).forEach(t=>tokens.push(t)));
-    groupTree=buildTree(tokens);
+  try {
+    setStatus("Loading CSV for group suggestions…", "warn");
+    const res = await fetch(csvUrl, { cache: "no-store" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const txt = await res.text();
+    const rows = parseDelimited(txt, detectDelimiter(txt));
+    const tokens = [];
+    rows.forEach(r => splitGroups(r[1]).forEach(t => tokens.push(t))); // column 2 = groups
+
+    groupTree = buildTree(tokens);
     syncFromInput();
     renderPicker();
-    setStatus("Group suggestions ready.","ok");
-  }catch(e){
+    setStatus("Group suggestions ready.", "ok");
+  } catch (e) {
     console.error(e);
-    setStatus("Could not load CSV for suggestions.","warn");
+    groupTree = null;
+    renderPicker();
+    setStatus("Could not load CSV for suggestions.", "warn");
   }
 }
 
-function makeAppLink(csv,db){
-  const base=location.href.replace(/helper\.html.*/,"index.html");
-  const u=new URL(base);
-  if(db)u.searchParams.set("database",db);
-  if(csv)u.searchParams.set("csv",csv);
+/* ---------------- links ---------------- */
+function makeAppLink(csv, db) {
+  const base = location.href.replace(/helper\.html.*/i, "index.html");
+  const u = new URL(base);
+  if (db) u.searchParams.set("database", db);
+  if (csv) u.searchParams.set("csv", csv);
   return u.toString();
 }
 
-function apply(){
-  const sheet=el("sheetUrl").value.trim();
-  const db=el("dbName").value.trim();
-  el("csvUrlOut").textContent=sheet||"(none)";
-  el("appLink").textContent=sheet?makeAppLink(sheet,db):"(none)";
+function makeHelperLink(sheetUrl, dbName) {
+  const u = new URL(location.href);
+  if (sheetUrl) u.searchParams.set("sheet", sheetUrl);
+  if (dbName) u.searchParams.set("database", dbName);
+  return u.toString();
+}
+
+/* ---------------- image search + paste/drop to data URL ---------------- */
+el("btnImgSearch").onclick = () => {
+  const name = (el("name").value || "").trim();
+  const fallback = (el("image").value || "").trim();
+  const q = encodeURIComponent((name || fallback || "portrait") + " portrait");
+  const url = `https://www.google.com/search?tbm=isch&q=${q}`;
+  window.open(url, "_blank", "noopener,noreferrer");
+};
+
+async function fileToDataUrl(file, maxW = 512, quality = 0.85) {
+  const img = new Image();
+  const blobUrl = URL.createObjectURL(file);
+
+  await new Promise((resolve, reject) => {
+    img.onload = resolve;
+    img.onerror = reject;
+    img.src = blobUrl;
+  });
+
+  const scale = Math.min(1, maxW / img.width);
+  const w = Math.round(img.width * scale);
+  const h = Math.round(img.height * scale);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0, w, h);
+
+  URL.revokeObjectURL(blobUrl);
+
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
+async function handleImageBlob(blob) {
+  try {
+    setImgDropStatus("Processing image…", "warn");
+    const file = blob instanceof File
+      ? blob
+      : new File([blob], "pasted.jpg", { type: blob.type || "image/jpeg" });
+
+    const dataUrl = await fileToDataUrl(file, 512, 0.85);
+    el("image").value = dataUrl;
+    setImgDropStatus("Image inserted into IMAGE field (data URL).", "ok");
+  } catch (e) {
+    console.error(e);
+    setImgDropStatus("Could not process image.", "err");
+  }
+}
+
+(function wireImagePasteDrop(){
+  const zone = el("imgDrop");
+  if (!zone) return;
+
+  zone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    zone.style.opacity = "0.85";
+  });
+
+  zone.addEventListener("dragleave", () => {
+    zone.style.opacity = "1";
+  });
+
+  zone.addEventListener("drop", async (e) => {
+    e.preventDefault();
+    zone.style.opacity = "1";
+    const f = e.dataTransfer?.files?.[0];
+    if (f && f.type && f.type.startsWith("image/")) {
+      await handleImageBlob(f);
+    } else {
+      setImgDropStatus("That doesn’t look like an image file.", "warn");
+    }
+  });
+
+  zone.addEventListener("click", () => zone.focus());
+
+  zone.addEventListener("paste", async (e) => {
+    const items = e.clipboardData?.items || [];
+    for (const it of items) {
+      if (it.type && it.type.startsWith("image/")) {
+        const blob = it.getAsFile();
+        if (blob) {
+          await handleImageBlob(blob);
+          e.preventDefault();
+          return;
+        }
+      }
+    }
+    setImgDropStatus("No image found in clipboard. Copy an image first.", "warn");
+  });
+
+  setImgDropStatus("Click here, then paste an image (⌘V / Ctrl+V), or drag & drop.", "muted");
+})();
+
+/* ---------------- row generation ---------------- */
+function tsvCell(s) {
+  return String(s || "").replace(/\t/g, " ").replace(/\r?\n/g, " ").trim();
+}
+
+el("btnMakeRow").onclick = () => {
+  const name = tsvCell(el("name").value);
+  if (!name) { setStatus("NAME required.", "err"); return; }
+
+  const row = [
+    name,
+    tsvCell(el("groups").value),
+    tsvCell(el("image").value),
+    tsvCell(el("info").value)
+  ].join("\t");
+
+  el("rowOut").textContent = row;
+  setStatus("Row generated.", "ok");
+};
+
+el("btnCopyRow").onclick = async () => {
+  const txt = el("rowOut").textContent || "";
+  if (!txt.trim()) return;
+  try { await copyText(txt); setStatus("Row copied (TSV).", "ok"); }
+  catch { setStatus("Could not copy row (clipboard blocked).", "warn"); }
+};
+
+el("btnCopyCsv").onclick = async () => {
+  const txt = el("csvUrlOut").textContent || "";
+  if (!txt.trim() || txt.startsWith("(")) return;
+  try { await copyText(txt); setStatus("CSV URL copied.", "ok"); }
+  catch { setStatus("Could not copy CSV URL (clipboard blocked).", "warn"); }
+};
+
+el("btnCopyAppLink").onclick = async () => {
+  const txt = el("appLink").textContent || "";
+  if (!txt.trim() || txt.startsWith("(")) return;
+  try { await copyText(txt); setStatus("App link copied.", "ok"); }
+  catch { setStatus("Could not copy app link (clipboard blocked).", "warn"); }
+};
+
+el("btnCopyHelperLink").onclick = async () => {
+  const sheetUrl = el("sheetUrl").value.trim();
+  const dbName = el("dbName").value.trim();
+  const link = makeHelperLink(sheetUrl, dbName);
+  try { await copyText(link); setStatus("Helper link copied.", "ok"); }
+  catch { setStatus("Could not copy helper link (clipboard blocked).", "warn"); }
+};
+
+el("btnClear").onclick = () => {
+  el("name").value = "";
+  el("groups").value = "";
+  el("image").value = "";
+  el("info").value = "";
+  el("rowOut").textContent = "";
+  selectedTokens.clear();
+  pickerPath = [];
+  renderPicker();
+  setImgDropStatus("Click here, then paste an image (⌘V / Ctrl+V), or drag & drop.", "muted");
+  setStatus("Cleared.", "ok");
+};
+
+/* ---------------- apply ---------------- */
+function apply() {
+  const sheet = el("sheetUrl").value.trim();
+  const db = el("dbName").value.trim();
+
+  el("csvUrlOut").textContent = sheet || "(none)";
+  el("appLink").textContent = sheet ? makeAppLink(sheet, db) : "(paste a CSV URL above)";
+
   tryLoadCsv(sheet);
 }
 
-function tsv(s){return String(s||"").replace(/\t|\n/g," ").trim();}
+el("btnApply").onclick = apply;
+el("groups").oninput = () => { syncFromInput(); renderPicker(); };
 
-el("btnApply").onclick=apply;
-el("groups").oninput=()=>{syncFromInput();renderPicker();};
+/* ---------------- init ---------------- */
+(function init() {
+  const s = qp("sheet");
+  const d = qp("database") || qp("databse") || "";
 
-el("btnMakeRow").onclick=()=>{
-  const name=tsv(el("name").value);
-  if(!name){setStatus("NAME required.","err");return;}
-  el("rowOut").textContent=[
-    name,
-    tsv(el("groups").value),
-    tsv(el("image").value),
-    tsv(el("info").value)
-  ].join("\t");
-  setStatus("Row generated.","ok");
-};
+  if (s) el("sheetUrl").value = s;
+  if (d) el("dbName").value = d;
 
-el("btnCopyRow").onclick=()=>copyText(el("rowOut").textContent);
-el("btnCopyCsv").onclick=()=>copyText(el("csvUrlOut").textContent);
-el("btnCopyAppLink").onclick=()=>copyText(el("appLink").textContent);
-el("btnClear").onclick=()=>{
-  ["name","groups","image","info","rowOut"].forEach(id=>el(id).value="");
-  selectedTokens.clear(); renderPicker();
-};
-
-(function init(){
-  const s=qp("sheet"), d=qp("database")||qp("databse");
-  if(s)el("sheetUrl").value=s;
-  if(d)el("dbName").value=d;
   apply();
 })();
 </script>
