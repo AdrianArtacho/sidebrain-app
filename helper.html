@@ -4,273 +4,415 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Sidebrain Helper</title>
+
   <style>
-    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#0b0b0f; color:#eaeaf2; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background:#0b0b0f;
+      color:#eaeaf2;
+    }
     .wrap { max-width: 980px; margin: 0 auto; padding: 18px; }
     h1 { font-size: 18px; margin: 0 0 10px; }
+    h2 { font-size: 15px; margin: 0 0 10px; }
     .muted { opacity: .75; font-size: 13px; }
-    .card { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.10); border-radius: 16px; padding: 14px; margin: 12px 0; }
-    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-    label { font-size: 12px; opacity: .8; display:block; margin-bottom: 6px; }
-    input, textarea, select, button {
-      border-radius: 12px; border: 1px solid rgba(255,255,255,.14);
-      background: rgba(0,0,0,.25); color: #eaeaf2;
-      padding: 10px 12px; font-size: 14px;
+    .mini { font-size: 12px; opacity: .85; }
+
+    .card {
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 16px;
+      padding: 14px;
+      margin: 12px 0;
     }
+
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 860px){ .grid2{ grid-template-columns:1fr; } }
+
+    label { font-size: 12px; opacity: .8; display:block; margin-bottom: 6px; }
+
+    input, textarea, select, button {
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.25);
+      color: #eaeaf2;
+      padding: 10px 12px;
+      font-size: 14px;
+    }
+
     input, select { height: 40px; }
     textarea { width: 100%; min-height: 84px; resize: vertical; }
+
     .grow { flex: 1; min-width: 260px; }
+
     button { cursor: pointer; }
-    button.primary { background: rgba(125,211,252,.20); border-color: rgba(125,211,252,.35); }
+    button.primary {
+      background: rgba(125,211,252,.20);
+      border-color: rgba(125,211,252,.35);
+    }
     button.ghost { background: transparent; }
-    code, pre { background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.10); border-radius: 12px; padding: 10px 12px; display:block; overflow:auto; }
+
+    code, pre {
+      background: rgba(0,0,0,.35);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 12px;
+      padding: 10px 12px;
+      display:block;
+      overflow:auto;
+    }
+
     .ok { color: #9ef0c2; }
     .warn { color: #ffd08a; }
     .err { color: #ff9aa9; }
-    .mini { font-size: 12px; opacity: .85; }
-    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    @media (max-width: 860px){ .grid2{ grid-template-columns:1fr; } }
+
+    /* Group picker */
+    .gpRow { display:flex; gap:8px; flex-wrap:wrap; margin:6px 0; }
+    .gpBtn {
+      padding: 6px 10px;
+      font-size: 13px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.25);
+    }
+    .gpBtn:hover { opacity: .85; }
+    .gpBtn.active {
+      border-color: rgba(125,211,252,.55);
+      background: rgba(125,211,252,.18);
+    }
+
+    .chip {
+      padding: 6px 10px;
+      font-size: 13px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+    }
+    .chip button {
+      margin-left: 8px;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      opacity: .7;
+    }
+    .chip button:hover { opacity: 1; }
   </style>
 </head>
+
 <body>
-  <div class="wrap">
-    <h1>🧠 Sidebrain Helper</h1>
-    <div class="muted">
-      This helper generates correctly formatted rows for your Sidebrain CSV sheet and builds share links.
-      It does <b>not</b> write into Google Sheets automatically (copy/paste workflow).
-    </div>
+<div class="wrap">
 
-    <div class="card">
-      <div class="row">
-        <div class="grow">
-          <label>Spreadsheet / CSV URL (can be “Publish to web” CSV, or a normal Google Sheet URL)</label>
-          <input id="sheetUrl" class="grow" placeholder="Paste Google Sheets URL or CSV URL…" />
-          <div class="mini muted">You can also pass it via URL: <code>?sheet=ENCODED_URL</code></div>
-        </div>
+  <h1>🧠 Sidebrain Helper</h1>
+  <div class="muted">
+    Build correctly formatted CSV rows and group hierarchies for Sidebrain.
+    Copy & paste into Google Sheets.
+  </div>
 
-        <div style="min-width:190px">
-          <label>Database name (optional)</label>
-          <input id="dbName" placeholder="ART / PPL / …" />
-        </div>
-
-        <div style="display:flex; gap:10px; align-items:flex-end">
-          <button id="btnApply" class="primary">Apply</button>
-          <button id="btnCopyHelperLink" class="ghost">Copy helper link</button>
-        </div>
+  <!-- DATA SOURCE -->
+  <div class="card">
+    <div class="row">
+      <div class="grow">
+        <label>Spreadsheet / CSV URL</label>
+        <input id="sheetUrl" placeholder="Paste Google Sheets or published CSV URL…" />
+        <div class="mini muted">You can also pass it via URL: <code>?sheet=ENCODED_URL</code></div>
       </div>
 
-      <div id="status" class="mini muted" style="margin-top:10px"></div>
-    </div>
+      <div style="min-width:200px">
+        <label>Database name (optional)</label>
+        <input id="dbName" placeholder="ART / PPL / …" />
+      </div>
 
-    <div class="card">
-      <div class="grid2">
-        <div>
-          <label>Flash9 app link (encoded)</label>
-          <pre id="appLink"></pre>
-          <button id="btnCopyAppLink" class="ghost">Copy app link</button>
-        </div>
-        <div>
-          <label>Detected CSV URL</label>
-          <pre id="csvUrlOut"></pre>
-          <button id="btnCopyCsv" class="ghost">Copy CSV URL</button>
-        </div>
+      <div style="display:flex; gap:10px; align-items:flex-end">
+        <button id="btnApply" class="primary">Apply</button>
+        <button id="btnCopyHelperLink" class="ghost">Copy helper link</button>
       </div>
     </div>
 
-    <div class="card">
-      <h2 style="font-size:15px;margin:0 0 10px">Add entry (copy/paste into Google Sheets)</h2>
+    <div id="status" class="mini muted" style="margin-top:10px"></div>
+  </div>
 
-      <div class="grid2">
-        <div>
-          <label>NAME</label>
-          <input id="name" class="grow" placeholder="e.g., Ingrid Oberkanins" />
-        </div>
-        <div>
-          <label>GROUPS (space-separated; use : for hierarchy)</label>
-          <input id="groups" class="grow" placeholder="music:instr:piano uni:univie:wisskomm" />
-        </div>
+  <!-- LINKS -->
+  <div class="card">
+    <div class="grid2">
+      <div>
+        <label>Flash9 app link</label>
+        <pre id="appLink"></pre>
+        <button id="btnCopyAppLink" class="ghost">Copy app link</button>
       </div>
-
-      <div class="grid2" style="margin-top:10px">
-        <div>
-          <label>IMAGE URL or [TEXT]</label>
-          <input id="image" class="grow" placeholder="https://...jpg  OR  [Piano]" />
-          <div class="mini muted">If you wrap text in brackets <code>[like this]</code>, Sidebrain shows it as a text-card face.</div>
-        </div>
-        <div>
-          <label>INFO (supports Markdown links)</label>
-          <input id="info" class="grow" placeholder="violin [piece](https://open.spotify.com/track/...)" />
-        </div>
-      </div>
-
-      <div style="margin-top:12px">
-        <button id="btnMakeRow" class="primary">Generate row</button>
-        <button id="btnClear" class="ghost">Clear</button>
-      </div>
-
-      <div style="margin-top:12px">
-        <label>Row output (TAB-separated; paste as a new row in Google Sheets)</label>
-        <pre id="rowOut"></pre>
-        <button id="btnCopyRow" class="ghost">Copy row</button>
-      </div>
-
-      <div class="mini muted" style="margin-top:8px">
-        Tip: In Google Sheets, click the first empty cell of a new row, then paste.
+      <div>
+        <label>Detected CSV URL</label>
+        <pre id="csvUrlOut"></pre>
+        <button id="btnCopyCsv" class="ghost">Copy CSV URL</button>
       </div>
     </div>
   </div>
 
+  <!-- ENTRY -->
+  <div class="card">
+    <h2>Add entry (copy/paste into Google Sheets)</h2>
+
+    <div class="grid2">
+      <div>
+        <label>NAME</label>
+        <input id="name" placeholder="Max Mustermann" />
+      </div>
+      <div>
+        <label>GROUPS (space-separated, ':' hierarchy)</label>
+        <input id="groups" placeholder="MUSIC:Composer UNI:mdw" />
+      </div>
+    </div>
+
+    <div class="mini muted" style="margin-top:8px">
+      Pick groups from your database:
+    </div>
+
+    <div id="groupPicker" class="card" style="padding:10px"></div>
+
+    <div class="mini muted">Selected groups:</div>
+    <div id="groupChips" class="row" style="margin-top:6px"></div>
+
+    <div class="grid2" style="margin-top:10px">
+      <div>
+        <label>IMAGE URL or [TEXT]</label>
+        <input id="image" placeholder="[Composer]" />
+      </div>
+      <div>
+        <label>INFO (Markdown links allowed)</label>
+        <input id="info" placeholder="violin [piece](https://open.spotify.com/…)" />
+      </div>
+    </div>
+
+    <div style="margin-top:12px">
+      <button id="btnMakeRow" class="primary">Generate row</button>
+      <button id="btnClear" class="ghost">Clear</button>
+    </div>
+
+    <div style="margin-top:12px">
+      <label>Row output (TAB-separated)</label>
+      <pre id="rowOut"></pre>
+      <button id="btnCopyRow" class="ghost">Copy row</button>
+    </div>
+  </div>
+
+</div>
+
 <script>
-  const el = (id) => document.getElementById(id);
+/* ---------------- utilities ---------------- */
+const el = id => document.getElementById(id);
+const qp = name => new URL(location.href).searchParams.get(name);
 
-  function qp(name) {
-    const u = new URL(location.href);
-    return u.searchParams.get(name);
-  }
+function setStatus(msg, cls="muted") {
+  const s = el("status");
+  s.className = "mini " + cls;
+  s.textContent = msg || "";
+}
 
-  function setStatus(msg, cls="muted") {
-    const s = el("status");
-    s.className = "mini " + cls;
-    s.textContent = msg || "";
-  }
+function copyText(txt) {
+  return navigator.clipboard.writeText(txt);
+}
 
-  function copyText(txt) {
-    return navigator.clipboard.writeText(txt);
-  }
+/* ---------------- CSV parsing ---------------- */
+function detectDelimiter(text) {
+  const l = text.split(/\r?\n/).find(x => x.trim()) || "";
+  if (l.includes("\t")) return "\t";
+  if (l.includes(";")) return ";";
+  return ",";
+}
 
-  // Try to turn a normal Google Sheets URL into a "publish CSV" URL if possible.
-  // If the user already provides output=csv, we keep it.
-  function normalizeToCsvUrl(input) {
-    const raw = (input || "").trim();
-    if (!raw) return "";
-
-    // Already a publish-to-web CSV URL
-    if (raw.includes("output=csv")) return raw;
-
-    // If it's a normal "docs.google.com/spreadsheets/d/<id>/..." URL,
-    // we cannot magically publish it without user publishing.
-    // But we can at least keep it for reference.
-    return raw;
-  }
-
-  function makeAppLink(csvUrl, dbName) {
-    const appBase = location.href.replace(/helper\.html.*/i, "index.html");
-    const u = new URL(appBase);
-    if (dbName) u.searchParams.set("database", dbName);
-    if (csvUrl) u.searchParams.set("csv", csvUrl); // URLSearchParams will encode it
-    return u.toString();
-  }
-
-  function makeHelperLink(sheetUrl, dbName) {
-    const u = new URL(location.href);
-    if (sheetUrl) u.searchParams.set("sheet", sheetUrl); // URLSearchParams will encode it
-    if (dbName) u.searchParams.set("database", dbName);
-    return u.toString();
-  }
-
-  function tsvEscapeCell(s) {
-    // Keep it simple: replace tabs/newlines so paste is safe
-    return String(s || "").replace(/\t/g, " ").replace(/\r?\n/g, " ").trim();
-  }
-
-  function generateRow() {
-    const name = tsvEscapeCell(el("name").value);
-    const groups = tsvEscapeCell(el("groups").value);
-    const image = tsvEscapeCell(el("image").value);
-    const info = tsvEscapeCell(el("info").value);
-
-    if (!name) {
-      setStatus("NAME is required.", "err");
-      return "";
+function parseDelimited(text, d) {
+  const rows=[], r=[], f={v:""}, out=()=>{r.push(f.v);f.v="";};
+  let q=false;
+  for (let i=0;i<text.length;i++){
+    const c=text[i], n=text[i+1];
+    if(q){
+      if(c==='"'&&n==='"'){f.v+='"';i++;}
+      else if(c==='"') q=false;
+      else f.v+=c;
+      continue;
     }
-    // 4-column format: NAME, GROUPS, IMAGE-URL/TEXT, INFO
-    return [name, groups, image, info].join("\t");
+    if(c==='"'){q=true;continue;}
+    if(c===d){out();continue;}
+    if(c==="\n"){out();rows.push([...r]);r.length=0;continue;}
+    if(c==="\r")continue;
+    f.v+=c;
+  }
+  out(); rows.push([...r]);
+  return rows.filter(r=>r.some(c=>String(c).trim()));
+}
+
+/* ---------------- group picker ---------------- */
+let groupTree=null;
+let pickerPath=[];
+let selectedTokens=new Set();
+
+function splitGroups(s){return String(s||"").trim().split(/\s+/).filter(Boolean);}
+
+function buildTree(tokens){
+  const root={id:null,label:null,children:new Map()};
+  for(const t of tokens){
+    const parts=t.split(":");
+    let n=root, acc="";
+    for(const p of parts){
+      acc=acc?acc+":"+p:p;
+      if(!n.children.has(p)) n.children.set(p,{id:acc,label:p,children:new Map()});
+      n=n.children.get(p);
+    }
+  }
+  return root;
+}
+
+function syncInput(){
+  el("groups").value=[...selectedTokens].sort().join(" ");
+}
+
+function syncFromInput(){
+  selectedTokens=new Set(splitGroups(el("groups").value));
+}
+
+function renderPicker(){
+  const host=el("groupPicker"), chips=el("groupChips");
+  host.innerHTML=""; chips.innerHTML="";
+
+  if(!groupTree){
+    host.innerHTML='<div class="mini muted">Load a CSV to enable group suggestions.</div>';
+    return;
   }
 
-  function apply() {
-    const sheetUrl = el("sheetUrl").value.trim();
-    const dbName = el("dbName").value.trim();
-
-    const csvUrl = normalizeToCsvUrl(sheetUrl);
-
-    el("csvUrlOut").textContent = csvUrl || "(none)";
-    el("appLink").textContent = csvUrl ? makeAppLink(csvUrl, dbName) : "(paste a sheet/csv URL above)";
-    setStatus("Ready.", "ok");
+  let node=groupTree;
+  for(const p of pickerPath){
+    if(node.children.has(p)) node=node.children.get(p);
   }
 
-  // init from URL params
-  (function init() {
-    const sheet = qp("sheet");
-    const db = qp("database") || qp("databse") || ""; // tolerate typo
+  const crumb=document.createElement("div");
+  crumb.className="mini muted";
+  crumb.textContent="Browse: "+(pickerPath.join(" : ")||"(root)");
+  host.appendChild(crumb);
 
-    if (sheet) el("sheetUrl").value = sheet;
-    if (db) el("dbName").value = db;
+  const row=document.createElement("div");
+  row.className="gpRow";
 
-    apply();
-  })();
+  if(pickerPath.length){
+    const back=document.createElement("button");
+    back.className="gpBtn";
+    back.textContent="← back";
+    back.onclick=()=>{pickerPath.pop();renderPicker();};
+    row.appendChild(back);
+  }
 
-  el("btnApply").addEventListener("click", apply);
+  [...node.children.values()].sort((a,b)=>a.label.localeCompare(b.label))
+    .forEach(ch=>{
+      const b=document.createElement("button");
+      b.className="gpBtn";
+      b.textContent=ch.label;
+      b.onclick=()=>{pickerPath.push(ch.label);renderPicker();};
+      row.appendChild(b);
+    });
 
-  el("btnCopyHelperLink").addEventListener("click", async () => {
-    const sheetUrl = el("sheetUrl").value.trim();
-    const dbName = el("dbName").value.trim();
-    const link = makeHelperLink(sheetUrl, dbName);
-    try {
-      await copyText(link);
-      setStatus("Helper link copied.", "ok");
-    } catch {
-      setStatus("Could not copy helper link (clipboard blocked).", "warn");
-    }
+  host.appendChild(row);
+
+  if(node.id){
+    const add=document.createElement("button");
+    add.className="gpBtn active";
+    add.textContent=`＋ add "${node.id}"`;
+    add.onclick=()=>{
+      selectedTokens.add(node.id);
+      syncInput();
+      renderPicker();
+    };
+    host.appendChild(add);
+  }
+
+  [...selectedTokens].sort().forEach(t=>{
+    const c=document.createElement("span");
+    c.className="chip";
+    c.textContent=t;
+    const x=document.createElement("button");
+    x.textContent="×";
+    x.onclick=()=>{
+      selectedTokens.delete(t);
+      syncInput();
+      renderPicker();
+    };
+    c.appendChild(x);
+    chips.appendChild(c);
   });
+}
 
-  el("btnCopyAppLink").addEventListener("click", async () => {
-    const txt = el("appLink").textContent.trim();
-    if (!txt || txt.startsWith("(")) return;
-    try {
-      await copyText(txt);
-      setStatus("App link copied.", "ok");
-    } catch {
-      setStatus("Could not copy app link (clipboard blocked).", "warn");
-    }
-  });
+/* ---------------- main flow ---------------- */
+async function tryLoadCsv(csvUrl){
+  groupTree=null;
+  pickerPath=[];
+  selectedTokens.clear();
 
-  el("btnCopyCsv").addEventListener("click", async () => {
-    const txt = el("csvUrlOut").textContent.trim();
-    if (!txt || txt.startsWith("(")) return;
-    try {
-      await copyText(txt);
-      setStatus("CSV URL copied.", "ok");
-    } catch {
-      setStatus("Could not copy CSV URL (clipboard blocked).", "warn");
-    }
-  });
+  if(!csvUrl||!csvUrl.includes("output=csv")){
+    renderPicker(); return;
+  }
 
-  el("btnMakeRow").addEventListener("click", () => {
-    const row = generateRow();
-    if (!row) return;
-    el("rowOut").textContent = row;
-    setStatus("Row generated. Copy and paste it into Google Sheets.", "ok");
-  });
+  try{
+    setStatus("Loading CSV for group suggestions…","warn");
+    const res=await fetch(csvUrl,{cache:"no-store"});
+    const txt=await res.text();
+    const rows=parseDelimited(txt,detectDelimiter(txt));
+    const tokens=[];
+    rows.forEach(r=>splitGroups(r[1]).forEach(t=>tokens.push(t)));
+    groupTree=buildTree(tokens);
+    syncFromInput();
+    renderPicker();
+    setStatus("Group suggestions ready.","ok");
+  }catch(e){
+    console.error(e);
+    setStatus("Could not load CSV for suggestions.","warn");
+  }
+}
 
-  el("btnCopyRow").addEventListener("click", async () => {
-    const txt = el("rowOut").textContent;
-    if (!txt) return;
-    try {
-      await copyText(txt);
-      setStatus("Row copied (TSV). Paste into a new row in Google Sheets.", "ok");
-    } catch {
-      setStatus("Could not copy row (clipboard blocked).", "warn");
-    }
-  });
+function makeAppLink(csv,db){
+  const base=location.href.replace(/helper\.html.*/,"index.html");
+  const u=new URL(base);
+  if(db)u.searchParams.set("database",db);
+  if(csv)u.searchParams.set("csv",csv);
+  return u.toString();
+}
 
-  el("btnClear").addEventListener("click", () => {
-    el("name").value = "";
-    el("groups").value = "";
-    el("image").value = "";
-    el("info").value = "";
-    el("rowOut").textContent = "";
-    setStatus("Cleared.", "ok");
-  });
+function apply(){
+  const sheet=el("sheetUrl").value.trim();
+  const db=el("dbName").value.trim();
+  el("csvUrlOut").textContent=sheet||"(none)";
+  el("appLink").textContent=sheet?makeAppLink(sheet,db):"(none)";
+  tryLoadCsv(sheet);
+}
+
+function tsv(s){return String(s||"").replace(/\t|\n/g," ").trim();}
+
+el("btnApply").onclick=apply;
+el("groups").oninput=()=>{syncFromInput();renderPicker();};
+
+el("btnMakeRow").onclick=()=>{
+  const name=tsv(el("name").value);
+  if(!name){setStatus("NAME required.","err");return;}
+  el("rowOut").textContent=[
+    name,
+    tsv(el("groups").value),
+    tsv(el("image").value),
+    tsv(el("info").value)
+  ].join("\t");
+  setStatus("Row generated.","ok");
+};
+
+el("btnCopyRow").onclick=()=>copyText(el("rowOut").textContent);
+el("btnCopyCsv").onclick=()=>copyText(el("csvUrlOut").textContent);
+el("btnCopyAppLink").onclick=()=>copyText(el("appLink").textContent);
+el("btnClear").onclick=()=>{
+  ["name","groups","image","info","rowOut"].forEach(id=>el(id).value="");
+  selectedTokens.clear(); renderPicker();
+};
+
+(function init(){
+  const s=qp("sheet"), d=qp("database")||qp("databse");
+  if(s)el("sheetUrl").value=s;
+  if(d)el("dbName").value=d;
+  apply();
+})();
 </script>
 </body>
 </html>
