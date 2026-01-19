@@ -197,3 +197,7 @@ It is intentionally simple, hackable, and portable.
 
 THis online App was developed by [Adrián Artacho](https://www.artacho.at/).
 Enjoy — and feel free to fork, adapt, or repurpose Sidebrain for any learning context.
+
+---
+
+## [📝To-Do](https://trello.com/c/hf0SnED8/50-sidebrain)
