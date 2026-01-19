@@ -114,6 +114,23 @@ function getQueryParam(name) {
   return url.searchParams.get(name);
 }
 
+function applyGroupFromQuery() {
+  const g = getQueryParam("group"); // single group id like "MUSIC:Composer"
+  if (!g) return false;
+  setSelectedGroups([g]);           // selects this node; matching uses prefixes so parents work too
+  return true;
+}
+
+function applyFocusFromQuery() {
+  const focus = getQueryParam("focus");
+  if (!focus) return;
+  // scroll to the card/swipe area
+  setTimeout(() => {
+    ui.card?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, 50);
+}
+
+
 function getCsvUrl() {
   // priority: query param > localStorage
   const qp = getQueryParam("csv");
@@ -1031,7 +1048,10 @@ if (ui.btnLoad) ui.btnLoad.addEventListener("click", async () => {
     restoreAndPruneOpenState(tree);
 
     renderGroupsUI();
+    applyGroupFromQuery();
+    renderGroupsUI();      // re-render to reflect the selection from URL
     applyFilters(true);
+    applyFocusFromQuery();
 
     setStatus(`Loaded ${allCards.length} cards.`);
     resetSessionStats();
