@@ -193,6 +193,9 @@ It is intentionally simple, hackable, and portable.
 
 ---
 
+## You may use the [Helper](https://adrianartacho.github.io/sidebrain-app/helper.html#add-entry) to [enter data in a google from](helper-README.md).
+---
+
 ## 🛠 CREDITS
 
 THis online App was developed by [Adrián Artacho](https://www.artacho.at/).
