@@ -199,6 +199,15 @@
           <button id="btnImgSearch" class="ghost">Image search</button>
         </div>
 
+        <!-- NEW: tiny preview -->
+        <div id="imgPreviewWrap" class="mini muted" style="margin-top:8px; display:none;">
+          <div style="display:flex; gap:10px; align-items:center;">
+            <img id="imgPreview" alt="preview"
+                 style="width:48px;height:48px;object-fit:cover;border-radius:10px;border:1px solid rgba(255,255,255,.14);display:none;">
+            <div id="imgPreviewStatus" class="mini muted"></div>
+          </div>
+        </div>
+
         <div id="imgDrop" class="card" tabindex="0">
           <div class="mini muted">
             Paste or drop an image here → stored as data URL
@@ -266,6 +275,83 @@
 
   function copyText(txt) {
     return navigator.clipboard.writeText(txt);
+  }
+
+  // ---------- image preview (NEW) ----------
+  function isBracketText(s) {
+    const t = String(s || "").trim();
+    return /^\[.*\]$/.test(t);
+  }
+
+  function showImgPreviewStatus(msg, cls="muted") {
+    const wrap = el("imgPreviewWrap");
+    const status = el("imgPreviewStatus");
+    if (!wrap || !status) return;
+
+    wrap.style.display = "block";
+    status.className = "mini " + cls;
+    status.textContent = msg || "";
+  }
+
+  function clearImgPreview() {
+    const wrap = el("imgPreviewWrap");
+    const img = el("imgPreview");
+    const status = el("imgPreviewStatus");
+    if (!wrap || !img || !status) return;
+
+    wrap.style.display = "none";
+    img.style.display = "none";
+    img.removeAttribute("src");
+    status.textContent = "";
+  }
+
+  let imgPreviewTimer = null;
+
+  function scheduleImgPreview() {
+    if (imgPreviewTimer) clearTimeout(imgPreviewTimer);
+    imgPreviewTimer = setTimeout(renderImgPreviewNow, 250);
+  }
+
+  function renderImgPreviewNow() {
+    const input = el("image");
+    const img = el("imgPreview");
+    const wrap = el("imgPreviewWrap");
+    if (!input || !img || !wrap) return;
+
+    const v = String(input.value || "").trim();
+
+    if (!v) { clearImgPreview(); return; }
+
+    if (isBracketText(v)) {
+      showImgPreviewStatus("Text placeholder detected (no image preview).", "muted");
+      img.style.display = "none";
+      img.removeAttribute("src");
+      return;
+    }
+
+    showImgPreviewStatus("Checking image…", "warn");
+    img.style.display = "none";
+
+    // cache-bust for normal URLs; leave data: URLs untouched
+    let src = v;
+    try {
+      const u = new URL(v);
+      u.searchParams.set("_sb_preview", Date.now().toString());
+      src = u.toString();
+    } catch {
+      src = v;
+    }
+
+    img.onload = () => {
+      img.style.display = "block";
+      showImgPreviewStatus("Image OK ✓", "ok");
+    };
+    img.onerror = () => {
+      img.style.display = "none";
+      showImgPreviewStatus("Could not load image (blocked/invalid URL/CORS/protected).", "warn");
+    };
+
+    img.src = src;
   }
 
   // ---------- name handling ----------
@@ -473,6 +559,8 @@
         pickerPath = [];
         renderPicker();
 
+        renderImgPreviewNow(); // NEW
+
         setStatus("Loaded existing entry into the form.", "ok");
         renderNameMatches();
       };
@@ -555,6 +643,7 @@
       const dataUrl = await fileToDataUrl(file, 512, 0.85);
       el("image").value = dataUrl;
       setImgDropStatus("Image inserted into IMAGE field (data URL).", "ok");
+      renderImgPreviewNow(); // NEW
     } catch (e) {
       console.error(e);
       setImgDropStatus("Image processing failed.", "err");
@@ -609,13 +698,13 @@
   }
 
   function ensureImageDefaultPlaceholder() {
-    // If empty, nudge to "[?]" so missing images are searchable
     const v = (el("image").value || "").trim();
     if (!v) el("image").value = "[?]";
   }
 
   el("btnMakeRow").onclick = () => {
     ensureImageDefaultPlaceholder();
+    renderImgPreviewNow(); // NEW
     const row = buildTsvRow();
     if (!row) { setStatus("Please enter Vorname/Nachname.", "err"); return; }
     el("rowOut").textContent = row;
@@ -626,6 +715,7 @@
     const txt = el("rowOut").textContent || "";
     if (!txt.trim()) {
       ensureImageDefaultPlaceholder();
+      renderImgPreviewNow(); // NEW
       const row = buildTsvRow();
       if (!row) { setStatus("Please enter Vorname/Nachname.", "err"); return; }
       el("rowOut").textContent = row;
@@ -651,6 +741,8 @@
     renderPicker();
     renderNameMatches();
 
+    clearImgPreview(); // NEW
+
     setFormStatus("", "muted");
     setImgDropStatus("Click here, then paste an image (⌘V / Ctrl+V), or drag & drop.", "muted");
     setStatus("Cleared.", "ok");
@@ -672,7 +764,6 @@
     if (sheetUrl) u.searchParams.set("sheet", sheetUrl);
     if (dbName) u.searchParams.set("database", dbName);
     if (formUrl) u.searchParams.set("form", formUrl);
-    // always jump to add entry:
     return u.toString() + "#add-entry";
   }
 
@@ -700,8 +791,6 @@
   function normalizeFormBaseUrl(raw) {
     const s = String(raw || "").trim();
     if (!s) return "";
-
-    // Use URL() to normalize; remove any existing query parameters
     try {
       const u = new URL(s);
       u.search = "";
@@ -716,6 +805,7 @@
     if (!base) return "";
 
     ensureImageDefaultPlaceholder();
+    renderImgPreviewNow(); // NEW
 
     const u = new URL(base);
     u.searchParams.set(FORM_ENTRIES.firstName, el("firstName").value || "");
@@ -748,6 +838,10 @@
     renderPicker();
   });
 
+  // NEW: live image preview on input
+  el("image").addEventListener("input", scheduleImgPreview);
+  el("image").addEventListener("change", renderImgPreviewNow);
+
   // ---------- apply ----------
   el("btnApply").onclick = () => {
     const sheet = el("sheetUrl").value.trim();
@@ -762,7 +856,6 @@
 
   // ---------- init ----------
   (function init() {
-    // read params
     const sheet = qp("sheet");
     const db = qp("database") || "";
     const form = qp("form");
@@ -771,10 +864,11 @@
     if (db) el("dbName").value = db;
     if (form) el("formUrl").value = form;
 
-    // apply once
     el("btnApply").click();
 
-    // anchor jump
+    // render preview for any pre-filled image value
+    renderImgPreviewNow();
+
     if (location.hash === "#add-entry") {
       setTimeout(() => {
         const a = document.getElementById("add-entry");
