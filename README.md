@@ -5,6 +5,8 @@
 It is designed for **learning, memorization, and practice**, works beautifully on **mobile**, and can be installed as a **homescreen app**.  
 No backend, no accounts, no data stored in the repository.
 
+![img/gui.png](img/gui.png)
+
 ---
 
 ## ✨ Key Features
