@@ -58,6 +58,8 @@
     padding:10px 12px;
     display:block;
     overflow:auto;
+    white-space: pre-wrap;
+    word-break: break-word;
   }
 
   .ok { color:#9ef0c2 }
@@ -174,6 +176,16 @@
       </div>
     </div>
 
+    <!-- NEW: Generated shareable helper URL -->
+    <div style="margin-top:10px">
+      <label>Generated helper URL (shareable, encoded)</label>
+      <pre id="helperLinkOut"></pre>
+      <div class="row" style="margin-top:8px">
+        <button id="btnCopyHelperOut" class="ghost">Copy generated helper URL</button>
+      </div>
+      <div class="mini muted">Tip: paste raw URLs above; this box is the “correct-by-construction” share link.</div>
+    </div>
+
     <div id="status" class="mini muted" style="margin-top:10px"></div>
     <div id="dbsheetStatus" class="mini muted" style="margin-top:6px"></div>
   </div>
@@ -288,11 +300,12 @@
   let pickerPath = [];
   let selectedTokens = new Set();
 
-  // NEW: editable DB sheet support
+  // Editable DB sheet support
   let dbSheetEditUrl = "";
   let dbSheetCsvUrl = "";
-  let dbSheetIndexByName = new Map(); // lower(name) -> first row (1-based)
-  let dbSheetGid = "";                // from dbsheetcsv gid or dbsheet hash
+  let dbSheetIndex = new Map(); // key -> {row}
+  let dbSheetGid = "";
+  let dbSheetHeaderOffset = 0;
 
   function setStatus(msg, cls="muted") {
     const s = el("status");
@@ -314,16 +327,43 @@
     s.className = "mini " + cls;
     s.textContent = msg || "";
   }
-
   function copyText(txt) { return navigator.clipboard.writeText(txt); }
 
   // ---------- utilities ----------
-  function norm(s) { return String(s || "").toLowerCase().trim(); }
+  function norm(s) {
+    return String(s || "")
+      .toLowerCase()
+      .replace(/[,\.;:()\[\]{}"]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
   function escapeHtml(s) {
     return String(s || "")
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
+  }
+
+  // ---------- helper URL generator (NEW) ----------
+  function makeHelperLink(params) {
+    const u = new URL(location.href.replace(/#.*$/, ""));
+    for (const [k, v] of Object.entries(params)) {
+      if (v) u.searchParams.set(k, v);
+      else u.searchParams.delete(k);
+    }
+    return u.toString() + "#add-entry";
+  }
+
+  function updateHelperLinkOut() {
+    const link = makeHelperLink({
+      sheet: el("sheetUrl").value.trim(),
+      database: el("dbName").value.trim(),
+      form: el("formUrl").value.trim(),
+      dbsheet: el("dbSheetEditUrl").value.trim(),
+      dbsheetcsv: el("dbSheetCsvUrl").value.trim(),
+    });
+    el("helperLinkOut").textContent = link;
+    return link;
   }
 
   // ---------- image preview ----------
@@ -379,7 +419,7 @@
       u.searchParams.set("_sb_preview", Date.now().toString());
       src = u.toString();
     } catch {
-      src = v; // data: URLs etc.
+      src = v;
     }
 
     img.onload = () => {
@@ -533,11 +573,10 @@
     });
   }
 
-  // ---------- DB sheet row jump (NEW) ----------
+  // ---------- DB sheet row jump ----------
   function extractGidFromUrl(u) {
     try {
       const url = new URL(u);
-      // gid may appear in hash "#gid=123" or query "?gid=123"
       const hash = url.hash || "";
       const m1 = hash.match(/gid=(\d+)/);
       if (m1) return m1[1];
@@ -562,9 +601,43 @@
     }
   }
 
+  function nameKeysFromFullName(full) {
+    const raw = String(full || "").trim();
+    if (!raw) return [];
+    // support "Last, First"
+    let cleaned = raw.replace(/\s+/g, " ").trim();
+    if (cleaned.includes(",")) {
+      const [a,b] = cleaned.split(",").map(x => x.trim());
+      cleaned = b ? (b + " " + a) : cleaned.replace(",", " ");
+    }
+
+    const parts = cleaned.split(/\s+/).filter(Boolean);
+    if (!parts.length) return [];
+
+    const first = parts.slice(0, -1).join(" ");
+    const last = parts[parts.length - 1];
+
+    const keys = new Set();
+    keys.add(norm(cleaned));
+    if (first && last) {
+      keys.add(norm(first + " " + last));
+      keys.add(norm(last + " " + first));
+    }
+    return [...keys].filter(Boolean);
+  }
+
+  function detectHeaderOffset(rows) {
+    if (!rows.length) return 0;
+    const a = norm(rows[0][0] || "");
+    // common header-ish labels
+    const headerish = new Set(["name", "fullname", "full name", "vorname", "nachname", "first name", "firstname", "last name", "lastname"]);
+    return headerish.has(a) ? 1 : 0;
+  }
+
   async function loadDbSheetIndexIfPossible() {
-    dbSheetIndexByName = new Map();
+    dbSheetIndex = new Map();
     dbSheetGid = extractGidFromUrl(dbSheetCsvUrl) || extractGidFromUrl(dbSheetEditUrl) || "";
+    dbSheetHeaderOffset = 0;
 
     if (!dbSheetCsvUrl) {
       setDbSheetStatus("DB sheet CSV not set — row jump disabled.", "muted");
@@ -578,32 +651,40 @@
       const txt = await res.text();
 
       const rows = parseDelimited(txt, detectDelimiter(txt));
+      dbSheetHeaderOffset = detectHeaderOffset(rows);
 
-      // Expect same schema: [NAME, GROUPS, IMAGE, INFO] without headers
-      rows.forEach((r, idx) => {
-        const name = String(r[0] || "").trim();
-        if (!name) return;
-        const key = norm(name);
-        // keep first occurrence
-        if (!dbSheetIndexByName.has(key)) dbSheetIndexByName.set(key, idx + 1); // 1-based row
-      });
+      const start = dbSheetHeaderOffset;
+      for (let idx = start; idx < rows.length; idx++) {
+        const r = rows[idx];
+        const full = String(r[0] || "").trim();
+        if (!full) continue;
 
-      setDbSheetStatus(`DB sheet index ready (${dbSheetIndexByName.size} names).`, "ok");
+        const row1Based = idx + 1; // actual sheet row (because idx is 0-based and includes header if present)
+        for (const k of nameKeysFromFullName(full)) {
+          if (!dbSheetIndex.has(k)) dbSheetIndex.set(k, { row: row1Based });
+        }
+      }
+
+      const msg = `DB sheet index ready (${dbSheetIndex.size} keys).` + (dbSheetHeaderOffset ? " (Header detected.)" : "");
+      setDbSheetStatus(msg, "ok");
     } catch (e) {
       console.error(e);
-      dbSheetIndexByName = new Map();
+      dbSheetIndex = new Map();
       setDbSheetStatus("Could not load DB sheet CSV — row jump disabled.", "warn");
     }
   }
 
-  function getDbJumpForName(displayName) {
+  function getDbJumpForName(fullName) {
     if (!dbSheetEditUrl) return "";
-    const row = dbSheetIndexByName.get(norm(displayName));
-    if (!row) return ""; // unknown location
-    return makeDbJumpUrl(dbSheetEditUrl, dbSheetGid, row);
+    const keys = nameKeysFromFullName(fullName);
+    for (const k of keys) {
+      const hit = dbSheetIndex.get(k);
+      if (hit && hit.row) return makeDbJumpUrl(dbSheetEditUrl, dbSheetGid, hit.row);
+    }
+    return "";
   }
 
-  // ---------- name matching (UPDATED) ----------
+  // ---------- name suggestions ----------
   function renderNameMatches() {
     const box = el("nameMatches");
     const q = norm(getFullName());
@@ -649,7 +730,6 @@
 
     box.innerHTML = header + rowsHtml;
 
-    // Wire "Load" buttons
     box.querySelectorAll("button[data-load]").forEach(btn => {
       btn.onclick = () => {
         const i = Number(btn.getAttribute("data-load"));
@@ -674,14 +754,12 @@
       };
     });
 
-    // Wire "Open DB (no row)" fallback:
     box.querySelectorAll("button[data-dbcopy]").forEach(btn => {
       btn.onclick = async () => {
         const i = Number(btn.getAttribute("data-dbcopy"));
         const m = matches[i];
         if (!m) return;
 
-        // Open edit sheet (no range), copy name to clipboard to allow Ctrl+F
         window.open(dbSheetEditUrl, "_blank", "noopener,noreferrer");
         try {
           await copyText(m.name);
@@ -872,7 +950,7 @@
     el("firstName").focus();
   };
 
-  // ---------- links ----------
+  // ---------- app link ----------
   function makeAppLink(csv, db) {
     const base = location.href.replace(/helper\.html.*/i, "index.html");
     const u = new URL(base);
@@ -881,14 +959,7 @@
     return u.toString();
   }
 
-  function makeHelperLink(params) {
-    const u = new URL(location.href.replace(/#.*$/, ""));
-    for (const [k, v] of Object.entries(params)) {
-      if (v) u.searchParams.set(k, v);
-    }
-    return u.toString() + "#add-entry";
-  }
-
+  // ---------- copy buttons ----------
   el("btnCopyCsv").onclick = async () => {
     const txt = el("csvUrlOut").textContent || "";
     if (!txt.trim() || txt.startsWith("(")) return;
@@ -904,15 +975,15 @@
   };
 
   el("btnCopyHelperLink").onclick = async () => {
-    const link = makeHelperLink({
-      sheet: el("sheetUrl").value.trim(),
-      database: el("dbName").value.trim(),
-      form: el("formUrl").value.trim(),
-      dbsheet: el("dbSheetEditUrl").value.trim(),
-      dbsheetcsv: el("dbSheetCsvUrl").value.trim()
-    });
+    const link = updateHelperLinkOut();
     try { await copyText(link); setStatus("Helper link copied (#add-entry).", "ok"); }
     catch { setStatus("Could not copy helper link.", "warn"); }
+  };
+
+  el("btnCopyHelperOut").onclick = async () => {
+    const link = updateHelperLinkOut();
+    try { await copyText(link); setStatus("Generated helper URL copied.", "ok"); }
+    catch { setStatus("Could not copy generated URL.", "warn"); }
   };
 
   // ---------- Google Form prefill ----------
@@ -969,6 +1040,11 @@
   el("image").addEventListener("input", scheduleImgPreview);
   el("image").addEventListener("change", renderImgPreviewNow);
 
+  // Live-update the generated helper URL while editing params (NEW)
+  ["sheetUrl","dbName","formUrl","dbSheetEditUrl","dbSheetCsvUrl"].forEach(id => {
+    el(id).addEventListener("input", updateHelperLinkOut);
+  });
+
   // ---------- apply ----------
   el("btnApply").onclick = async () => {
     const sheet = el("sheetUrl").value.trim();
@@ -979,6 +1055,8 @@
 
     el("csvUrlOut").textContent = sheet || "(none)";
     el("appLink").textContent = sheet ? makeAppLink(sheet, db) : "(paste CSV URL above)";
+
+    updateHelperLinkOut();
 
     await loadDbSheetIndexIfPossible();
     await tryLoadCsv(sheet);
@@ -1000,6 +1078,7 @@
     if (dbsheet) el("dbSheetEditUrl").value = dbsheet;
     if (dbsheetcsv) el("dbSheetCsvUrl").value = dbsheetcsv;
 
+    updateHelperLinkOut();
     el("btnApply").click();
 
     renderImgPreviewNow();
