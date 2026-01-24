@@ -4,8 +4,6 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Sidebrain Helper</title>
-<link rel="icon" type="image/png" href="icon-192.png">
-
 
 <style>
   body {
@@ -74,6 +72,7 @@
     border-radius:999px;
     border:1px solid rgba(255,255,255,.14);
     background: rgba(0,0,0,.25);
+    color: inherit;
   }
   .gpBtn:hover { opacity:.85 }
   .gpBtn.active {
@@ -105,8 +104,24 @@
     box-shadow: 0 0 0 2px rgba(125,211,252,.12);
   }
 
-  /* anchor comfort: do not hide behind anything */
+  /* anchor comfort */
   #add-entry { scroll-margin-top: 12px; }
+
+  /* name matches layout */
+  .matchRow {
+    display:flex;
+    gap:8px;
+    align-items:center;
+    flex-wrap:wrap;
+    margin: 4px 0;
+  }
+  .matchSpacer { flex: 0 0 auto; opacity:.75; font-size:12px }
+  .matchLink {
+    text-decoration:none;
+    display:inline-block;
+    padding:4px 8px;
+    font-size:12px;
+  }
 </style>
 </head>
 
@@ -122,7 +137,7 @@
   <div class="card">
     <div class="row">
       <div class="grow">
-        <label>CSV URL (published “output=csv”)</label>
+        <label>CSV URL (published “output=csv”) — practice/import DB</label>
         <input id="sheetUrl" placeholder="Paste published CSV URL…" />
         <div class="mini muted">Or via URL: <code>?sheet=ENCODED_URL</code></div>
       </div>
@@ -146,7 +161,21 @@
       </div>
     </div>
 
+    <div class="row" style="margin-top:10px">
+      <div class="grow">
+        <label>Editable Google Sheet URL (optional, opens on match click)</label>
+        <input id="dbSheetEditUrl" placeholder="https://docs.google.com/spreadsheets/d/.../edit#gid=..." />
+        <div class="mini muted">Via URL: <code>?dbsheet=ENCODED_URL</code></div>
+      </div>
+      <div class="grow">
+        <label>Published CSV of the editable sheet tab (optional, enables row-jump)</label>
+        <input id="dbSheetCsvUrl" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?...&output=csv" />
+        <div class="mini muted">Via URL: <code>?dbsheetcsv=ENCODED_URL</code></div>
+      </div>
+    </div>
+
     <div id="status" class="mini muted" style="margin-top:10px"></div>
+    <div id="dbsheetStatus" class="mini muted" style="margin-top:6px"></div>
   </div>
 
   <!-- LINKS -->
@@ -201,7 +230,7 @@
           <button id="btnImgSearch" class="ghost">Image search</button>
         </div>
 
-        <!-- NEW: tiny preview -->
+        <!-- tiny preview -->
         <div id="imgPreviewWrap" class="mini muted" style="margin-top:8px; display:none;">
           <div style="display:flex; gap:10px; align-items:center;">
             <img id="imgPreview" alt="preview"
@@ -245,7 +274,7 @@
   const el = id => document.getElementById(id);
   const qp = n => new URL(location.href).searchParams.get(n);
 
-  // ---- Google Form entry IDs from your prefill link ----
+  // ---- Google Form entry IDs ----
   const FORM_ENTRIES = {
     firstName: "entry.480899959",
     lastName:  "entry.182545869",
@@ -259,8 +288,19 @@
   let pickerPath = [];
   let selectedTokens = new Set();
 
+  // NEW: editable DB sheet support
+  let dbSheetEditUrl = "";
+  let dbSheetCsvUrl = "";
+  let dbSheetIndexByName = new Map(); // lower(name) -> first row (1-based)
+  let dbSheetGid = "";                // from dbsheetcsv gid or dbsheet hash
+
   function setStatus(msg, cls="muted") {
     const s = el("status");
+    s.className = "mini " + cls;
+    s.textContent = msg || "";
+  }
+  function setDbSheetStatus(msg, cls="muted") {
+    const s = el("dbsheetStatus");
     s.className = "mini " + cls;
     s.textContent = msg || "";
   }
@@ -275,45 +315,45 @@
     s.textContent = msg || "";
   }
 
-  function copyText(txt) {
-    return navigator.clipboard.writeText(txt);
+  function copyText(txt) { return navigator.clipboard.writeText(txt); }
+
+  // ---------- utilities ----------
+  function norm(s) { return String(s || "").toLowerCase().trim(); }
+  function escapeHtml(s) {
+    return String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
   }
 
-  // ---------- image preview (NEW) ----------
+  // ---------- image preview ----------
   function isBracketText(s) {
     const t = String(s || "").trim();
     return /^\[.*\]$/.test(t);
   }
-
   function showImgPreviewStatus(msg, cls="muted") {
     const wrap = el("imgPreviewWrap");
     const status = el("imgPreviewStatus");
     if (!wrap || !status) return;
-
     wrap.style.display = "block";
     status.className = "mini " + cls;
     status.textContent = msg || "";
   }
-
   function clearImgPreview() {
     const wrap = el("imgPreviewWrap");
     const img = el("imgPreview");
     const status = el("imgPreviewStatus");
     if (!wrap || !img || !status) return;
-
     wrap.style.display = "none";
     img.style.display = "none";
     img.removeAttribute("src");
     status.textContent = "";
   }
-
   let imgPreviewTimer = null;
-
   function scheduleImgPreview() {
     if (imgPreviewTimer) clearTimeout(imgPreviewTimer);
     imgPreviewTimer = setTimeout(renderImgPreviewNow, 250);
   }
-
   function renderImgPreviewNow() {
     const input = el("image");
     const img = el("imgPreview");
@@ -321,7 +361,6 @@
     if (!input || !img || !wrap) return;
 
     const v = String(input.value || "").trim();
-
     if (!v) { clearImgPreview(); return; }
 
     if (isBracketText(v)) {
@@ -334,14 +373,13 @@
     showImgPreviewStatus("Checking image…", "warn");
     img.style.display = "none";
 
-    // cache-bust for normal URLs; leave data: URLs untouched
     let src = v;
     try {
       const u = new URL(v);
       u.searchParams.set("_sb_preview", Date.now().toString());
       src = u.toString();
     } catch {
-      src = v;
+      src = v; // data: URLs etc.
     }
 
     img.onload = () => {
@@ -352,7 +390,6 @@
       img.style.display = "none";
       showImgPreviewStatus("Could not load image (blocked/invalid URL/CORS/protected).", "warn");
     };
-
     img.src = src;
   }
 
@@ -362,7 +399,6 @@
     const ln = (el("lastName").value || "").trim();
     return (fn + " " + ln).trim();
   }
-
   function splitFullNameToFields(full) {
     const s = String(full || "").trim();
     if (!s) return { fn: "", ln: "" };
@@ -378,7 +414,6 @@
     if (l.includes(";")) return ";";
     return ",";
   }
-
   function parseDelimited(t, d) {
     const rows = [];
     let row = [];
@@ -409,7 +444,6 @@
 
     pushField();
     pushRow();
-
     return rows.filter(r => r.some(c => String(c).trim()));
   }
 
@@ -417,7 +451,6 @@
   function splitGroups(s) {
     return String(s || "").trim().split(/\s+/).filter(Boolean);
   }
-
   function buildTree(tokens) {
     const root = { children: new Map() };
     for (const t of tokens) {
@@ -432,13 +465,8 @@
     }
     return root;
   }
-
-  function syncInput() {
-    el("groups").value = [...selectedTokens].sort().join(" ");
-  }
-  function syncFromInput() {
-    selectedTokens = new Set(splitGroups(el("groups").value));
-  }
+  function syncInput() { el("groups").value = [...selectedTokens].sort().join(" "); }
+  function syncFromInput() { selectedTokens = new Set(splitGroups(el("groups").value)); }
 
   function renderPicker() {
     const h = el("groupPicker");
@@ -505,22 +533,85 @@
     });
   }
 
-  // ---------- name matching ----------
-  function norm(s) { return String(s || "").toLowerCase().trim(); }
-  function escapeHtml(s) {
-    return String(s || "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
+  // ---------- DB sheet row jump (NEW) ----------
+  function extractGidFromUrl(u) {
+    try {
+      const url = new URL(u);
+      // gid may appear in hash "#gid=123" or query "?gid=123"
+      const hash = url.hash || "";
+      const m1 = hash.match(/gid=(\d+)/);
+      if (m1) return m1[1];
+      const g = url.searchParams.get("gid");
+      if (g) return g;
+      return "";
+    } catch {
+      return "";
+    }
   }
 
+  function makeDbJumpUrl(editUrl, gid, row1Based) {
+    if (!editUrl) return "";
+    try {
+      const u = new URL(editUrl);
+      const g = gid || extractGidFromUrl(editUrl) || extractGidFromUrl(dbSheetCsvUrl) || "";
+      const range = `range=A${row1Based}`;
+      u.hash = g ? `gid=${g}&${range}` : range;
+      return u.toString();
+    } catch {
+      return "";
+    }
+  }
+
+  async function loadDbSheetIndexIfPossible() {
+    dbSheetIndexByName = new Map();
+    dbSheetGid = extractGidFromUrl(dbSheetCsvUrl) || extractGidFromUrl(dbSheetEditUrl) || "";
+
+    if (!dbSheetCsvUrl) {
+      setDbSheetStatus("DB sheet CSV not set — row jump disabled.", "muted");
+      return;
+    }
+
+    try {
+      setDbSheetStatus("Loading DB sheet CSV (for row jumps)…", "warn");
+      const res = await fetch(dbSheetCsvUrl, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const txt = await res.text();
+
+      const rows = parseDelimited(txt, detectDelimiter(txt));
+
+      // Expect same schema: [NAME, GROUPS, IMAGE, INFO] without headers
+      rows.forEach((r, idx) => {
+        const name = String(r[0] || "").trim();
+        if (!name) return;
+        const key = norm(name);
+        // keep first occurrence
+        if (!dbSheetIndexByName.has(key)) dbSheetIndexByName.set(key, idx + 1); // 1-based row
+      });
+
+      setDbSheetStatus(`DB sheet index ready (${dbSheetIndexByName.size} names).`, "ok");
+    } catch (e) {
+      console.error(e);
+      dbSheetIndexByName = new Map();
+      setDbSheetStatus("Could not load DB sheet CSV — row jump disabled.", "warn");
+    }
+  }
+
+  function getDbJumpForName(displayName) {
+    if (!dbSheetEditUrl) return "";
+    const row = dbSheetIndexByName.get(norm(displayName));
+    if (!row) return ""; // unknown location
+    return makeDbJumpUrl(dbSheetEditUrl, dbSheetGid, row);
+  }
+
+  // ---------- name matching (UPDATED) ----------
   function renderNameMatches() {
     const box = el("nameMatches");
     const q = norm(getFullName());
     if (q.length < 2 || !loadedRows.length) { box.textContent = ""; return; }
 
     const matches = loadedRows
-      .map(r => ({
+      .map((r, idx) => ({
+        idx,
         name: String(r[0] || "").trim(),
         groups: String(r[1] || "").trim(),
         image: String(r[2] || "").trim(),
@@ -534,18 +625,34 @@
       return;
     }
 
-    box.innerHTML =
-      `<div class="mini muted" style="margin-bottom:4px">Existing entries:</div>` +
-      matches.map((m, i) => `
-        <div style="margin:2px 0">
-          <button class="gpBtn" data-i="${i}" style="padding:4px 8px;font-size:12px">${escapeHtml(m.name)}</button>
-          <span class="mini muted"> ${escapeHtml(m.groups)}</span>
-        </div>
-      `).join("");
+    const header = `<div class="mini muted" style="margin-bottom:4px">Existing entries:</div>`;
+    const rowsHtml = matches.map((m, i) => {
+      const jump = getDbJumpForName(m.name);
 
-    box.querySelectorAll("button[data-i]").forEach(btn => {
+      const openDb = (dbSheetEditUrl)
+        ? (jump
+            ? `<a class="gpBtn matchLink" href="${jump}" target="_blank" rel="noopener noreferrer">Open DB</a>`
+            : `<button class="gpBtn" data-dbcopy="${i}" style="padding:4px 8px;font-size:12px">Open DB (no row)</button>`)
+        : "";
+
+      const loadBtn = `<button class="gpBtn" data-load="${i}" style="padding:4px 8px;font-size:12px">Load</button>`;
+
+      return `
+        <div class="matchRow">
+          <span class="chip" style="font-size:12px;padding:4px 8px">${escapeHtml(m.name)}</span>
+          ${openDb}
+          ${loadBtn}
+          <span class="matchSpacer">${escapeHtml(m.groups)}</span>
+        </div>
+      `;
+    }).join("");
+
+    box.innerHTML = header + rowsHtml;
+
+    // Wire "Load" buttons
+    box.querySelectorAll("button[data-load]").forEach(btn => {
       btn.onclick = () => {
-        const i = Number(btn.getAttribute("data-i"));
+        const i = Number(btn.getAttribute("data-load"));
         const m = matches[i];
         if (!m) return;
 
@@ -560,16 +667,33 @@
         syncFromInput();
         pickerPath = [];
         renderPicker();
-
-        renderImgPreviewNow(); // NEW
+        renderImgPreviewNow();
 
         setStatus("Loaded existing entry into the form.", "ok");
         renderNameMatches();
       };
     });
+
+    // Wire "Open DB (no row)" fallback:
+    box.querySelectorAll("button[data-dbcopy]").forEach(btn => {
+      btn.onclick = async () => {
+        const i = Number(btn.getAttribute("data-dbcopy"));
+        const m = matches[i];
+        if (!m) return;
+
+        // Open edit sheet (no range), copy name to clipboard to allow Ctrl+F
+        window.open(dbSheetEditUrl, "_blank", "noopener,noreferrer");
+        try {
+          await copyText(m.name);
+          setStatus(`Opened DB sheet. Copied "${m.name}" to clipboard (Ctrl+F → paste).`, "ok");
+        } catch {
+          setStatus(`Opened DB sheet. Use Ctrl+F to find "${m.name}".`, "warn");
+        }
+      };
+    });
   }
 
-  // ---------- load CSV ----------
+  // ---------- load practice/import CSV ----------
   async function tryLoadCsv(url) {
     loadedRows = [];
     groupTree = null;
@@ -586,8 +710,8 @@
       setStatus("Loading CSV…", "warn");
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
       const txt = await res.text();
+
       const rows = parseDelimited(txt, detectDelimiter(txt));
       loadedRows = rows;
 
@@ -645,7 +769,7 @@
       const dataUrl = await fileToDataUrl(file, 512, 0.85);
       el("image").value = dataUrl;
       setImgDropStatus("Image inserted into IMAGE field (data URL).", "ok");
-      renderImgPreviewNow(); // NEW
+      renderImgPreviewNow();
     } catch (e) {
       console.error(e);
       setImgDropStatus("Image processing failed.", "err");
@@ -687,18 +811,14 @@
   function tsvCell(s) {
     return String(s || "").replace(/\t/g, " ").replace(/\r?\n/g, " ").trim();
   }
-
   function buildTsvRow() {
     const name = getFullName();
     const groups = (el("groups").value || "").trim();
     const image = (el("image").value || "").trim();
     const info = (el("info").value || "").trim();
-
     if (!name) return "";
-
     return [name, groups, image, info].map(tsvCell).join("\t");
   }
-
   function ensureImageDefaultPlaceholder() {
     const v = (el("image").value || "").trim();
     if (!v) el("image").value = "[?]";
@@ -706,7 +826,7 @@
 
   el("btnMakeRow").onclick = () => {
     ensureImageDefaultPlaceholder();
-    renderImgPreviewNow(); // NEW
+    renderImgPreviewNow();
     const row = buildTsvRow();
     if (!row) { setStatus("Please enter Vorname/Nachname.", "err"); return; }
     el("rowOut").textContent = row;
@@ -717,7 +837,7 @@
     const txt = el("rowOut").textContent || "";
     if (!txt.trim()) {
       ensureImageDefaultPlaceholder();
-      renderImgPreviewNow(); // NEW
+      renderImgPreviewNow();
       const row = buildTsvRow();
       if (!row) { setStatus("Please enter Vorname/Nachname.", "err"); return; }
       el("rowOut").textContent = row;
@@ -743,7 +863,7 @@
     renderPicker();
     renderNameMatches();
 
-    clearImgPreview(); // NEW
+    clearImgPreview();
 
     setFormStatus("", "muted");
     setImgDropStatus("Click here, then paste an image (⌘V / Ctrl+V), or drag & drop.", "muted");
@@ -761,11 +881,11 @@
     return u.toString();
   }
 
-  function makeHelperLink(sheetUrl, dbName, formUrl) {
+  function makeHelperLink(params) {
     const u = new URL(location.href.replace(/#.*$/, ""));
-    if (sheetUrl) u.searchParams.set("sheet", sheetUrl);
-    if (dbName) u.searchParams.set("database", dbName);
-    if (formUrl) u.searchParams.set("form", formUrl);
+    for (const [k, v] of Object.entries(params)) {
+      if (v) u.searchParams.set(k, v);
+    }
     return u.toString() + "#add-entry";
   }
 
@@ -784,7 +904,13 @@
   };
 
   el("btnCopyHelperLink").onclick = async () => {
-    const link = makeHelperLink(el("sheetUrl").value.trim(), el("dbName").value.trim(), el("formUrl").value.trim());
+    const link = makeHelperLink({
+      sheet: el("sheetUrl").value.trim(),
+      database: el("dbName").value.trim(),
+      form: el("formUrl").value.trim(),
+      dbsheet: el("dbSheetEditUrl").value.trim(),
+      dbsheetcsv: el("dbSheetCsvUrl").value.trim()
+    });
     try { await copyText(link); setStatus("Helper link copied (#add-entry).", "ok"); }
     catch { setStatus("Could not copy helper link.", "warn"); }
   };
@@ -807,7 +933,7 @@
     if (!base) return "";
 
     ensureImageDefaultPlaceholder();
-    renderImgPreviewNow(); // NEW
+    renderImgPreviewNow();
 
     const u = new URL(base);
     u.searchParams.set(FORM_ENTRIES.firstName, el("firstName").value || "");
@@ -840,19 +966,23 @@
     renderPicker();
   });
 
-  // NEW: live image preview on input
   el("image").addEventListener("input", scheduleImgPreview);
   el("image").addEventListener("change", renderImgPreviewNow);
 
   // ---------- apply ----------
-  el("btnApply").onclick = () => {
+  el("btnApply").onclick = async () => {
     const sheet = el("sheetUrl").value.trim();
     const db = el("dbName").value.trim();
+
+    dbSheetEditUrl = el("dbSheetEditUrl").value.trim();
+    dbSheetCsvUrl = el("dbSheetCsvUrl").value.trim();
 
     el("csvUrlOut").textContent = sheet || "(none)";
     el("appLink").textContent = sheet ? makeAppLink(sheet, db) : "(paste CSV URL above)";
 
-    tryLoadCsv(sheet);
+    await loadDbSheetIndexIfPossible();
+    await tryLoadCsv(sheet);
+
     setFormStatus("", "muted");
   };
 
@@ -861,14 +991,17 @@
     const sheet = qp("sheet");
     const db = qp("database") || "";
     const form = qp("form");
+    const dbsheet = qp("dbsheet") || "";
+    const dbsheetcsv = qp("dbsheetcsv") || "";
 
     if (sheet) el("sheetUrl").value = sheet;
     if (db) el("dbName").value = db;
     if (form) el("formUrl").value = form;
+    if (dbsheet) el("dbSheetEditUrl").value = dbsheet;
+    if (dbsheetcsv) el("dbSheetCsvUrl").value = dbsheetcsv;
 
     el("btnApply").click();
 
-    // render preview for any pre-filled image value
     renderImgPreviewNow();
 
     if (location.hash === "#add-entry") {
