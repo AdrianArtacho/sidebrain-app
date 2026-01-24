@@ -176,7 +176,7 @@
       </div>
     </div>
 
-    <!-- NEW: Generated shareable helper URL -->
+    <!-- Generated shareable helper URL -->
     <div style="margin-top:10px">
       <label>Generated helper URL (shareable, encoded)</label>
       <pre id="helperLinkOut"></pre>
@@ -252,9 +252,7 @@
         </div>
 
         <div id="imgDrop" class="card" tabindex="0">
-          <div class="mini muted">
-            Paste or drop an image here → stored as data URL
-          </div>
+          <div class="mini muted">Paste or drop an image here → stored as data URL</div>
           <div id="imgDropStatus" class="mini muted" style="margin-top:6px"></div>
         </div>
       </div>
@@ -305,7 +303,6 @@
   let dbSheetCsvUrl = "";
   let dbSheetIndex = new Map(); // key -> {row}
   let dbSheetGid = "";
-  let dbSheetHeaderOffset = 0;
 
   function setStatus(msg, cls="muted") {
     const s = el("status");
@@ -344,7 +341,7 @@
       .replace(/>/g, "&gt;");
   }
 
-  // ---------- helper URL generator (NEW) ----------
+  // ---------- helper URL generator ----------
   function makeHelperLink(params) {
     const u = new URL(location.href.replace(/#.*$/, ""));
     for (const [k, v] of Object.entries(params)) {
@@ -601,14 +598,16 @@
     }
   }
 
+  // Robust name keys ("first last", "last first", handles "Last, First")
   function nameKeysFromFullName(full) {
     const raw = String(full || "").trim();
     if (!raw) return [];
-    // support "Last, First"
     let cleaned = raw.replace(/\s+/g, " ").trim();
+
     if (cleaned.includes(",")) {
-      const [a,b] = cleaned.split(",").map(x => x.trim());
-      cleaned = b ? (b + " " + a) : cleaned.replace(",", " ");
+      const parts = cleaned.split(",").map(x => x.trim()).filter(Boolean);
+      if (parts.length >= 2) cleaned = parts.slice(1).join(" ") + " " + parts[0];
+      cleaned = cleaned.replace(/\s+/g, " ").trim();
     }
 
     const parts = cleaned.split(/\s+/).filter(Boolean);
@@ -629,15 +628,49 @@
   function detectHeaderOffset(rows) {
     if (!rows.length) return 0;
     const a = norm(rows[0][0] || "");
-    // common header-ish labels
+    // Your dbsheetcsv has "Vorname" header
     const headerish = new Set(["name", "fullname", "full name", "vorname", "nachname", "first name", "firstname", "last name", "lastname"]);
     return headerish.has(a) ? 1 : 0;
+  }
+
+  // ✅ IMPORTANT FIX:
+  // dbsheetcsv may be a Google Form responses sheet with columns:
+  // Vorname, Nachname, Groups, Info, ... , Bild-URL, Timestamp
+  // so we must build "First Last" from col0+col1 (or timestamp-shifted variant).
+  function looksLikeTimestamp(s) {
+    const t = String(s || "").trim();
+    return /^(\d{1,2}\/\d{1,2}\/\d{2,4}|\d{4}-\d{1,2}-\d{1,2})\s+\d{1,2}:\d{2}/.test(t);
+  }
+  function looksLikeUrl(s) {
+    const t = String(s || "").trim().toLowerCase();
+    return t.startsWith("http://") || t.startsWith("https://") || t.startsWith("data:");
+  }
+  function buildFullNameFromRow_DB(row) {
+    const cells = (row || []).map(x => String(x ?? "").trim());
+    if (!cells.length) return "";
+
+    // Case A: timestamp first (common form responses layout)
+    if (looksLikeTimestamp(cells[0])) {
+      const fn = cells[1] || "";
+      const ln = cells[2] || "";
+      if (fn && ln && !looksLikeUrl(fn) && !looksLikeUrl(ln)) return `${fn} ${ln}`.trim();
+      return "";
+    }
+
+    // Case B: Vorname, Nachname (your file)
+    const fn = cells[0] || "";
+    const ln = cells[1] || "";
+    if (fn && ln && !looksLikeUrl(fn) && !looksLikeUrl(ln)) return `${fn} ${ln}`.trim();
+
+    // Fallback: maybe full name already in col0
+    if (cells[0] && cells[0].includes(" ") && !looksLikeUrl(cells[0])) return cells[0];
+
+    return "";
   }
 
   async function loadDbSheetIndexIfPossible() {
     dbSheetIndex = new Map();
     dbSheetGid = extractGidFromUrl(dbSheetCsvUrl) || extractGidFromUrl(dbSheetEditUrl) || "";
-    dbSheetHeaderOffset = 0;
 
     if (!dbSheetCsvUrl) {
       setDbSheetStatus("DB sheet CSV not set — row jump disabled.", "muted");
@@ -651,22 +684,21 @@
       const txt = await res.text();
 
       const rows = parseDelimited(txt, detectDelimiter(txt));
-      dbSheetHeaderOffset = detectHeaderOffset(rows);
+      const start = detectHeaderOffset(rows);
 
-      const start = dbSheetHeaderOffset;
       for (let idx = start; idx < rows.length; idx++) {
         const r = rows[idx];
-        const full = String(r[0] || "").trim();
+
+        const full = buildFullNameFromRow_DB(r);
         if (!full) continue;
 
-        const row1Based = idx + 1; // actual sheet row (because idx is 0-based and includes header if present)
+        const row1Based = idx + 1; // sheet rows are 1-based
         for (const k of nameKeysFromFullName(full)) {
           if (!dbSheetIndex.has(k)) dbSheetIndex.set(k, { row: row1Based });
         }
       }
 
-      const msg = `DB sheet index ready (${dbSheetIndex.size} keys).` + (dbSheetHeaderOffset ? " (Header detected.)" : "");
-      setDbSheetStatus(msg, "ok");
+      setDbSheetStatus(`DB sheet index ready (${dbSheetIndex.size} keys).`, "ok");
     } catch (e) {
       console.error(e);
       dbSheetIndex = new Map();
@@ -684,7 +716,7 @@
     return "";
   }
 
-  // ---------- name suggestions ----------
+  // ---------- name matching ----------
   function renderNameMatches() {
     const box = el("nameMatches");
     const q = norm(getFullName());
@@ -1040,7 +1072,7 @@
   el("image").addEventListener("input", scheduleImgPreview);
   el("image").addEventListener("change", renderImgPreviewNow);
 
-  // Live-update the generated helper URL while editing params (NEW)
+  // Live-update generated helper URL while editing params
   ["sheetUrl","dbName","formUrl","dbSheetEditUrl","dbSheetCsvUrl"].forEach(id => {
     el(id).addEventListener("input", updateHelperLinkOut);
   });
