@@ -487,6 +487,23 @@
     return rows.filter(r => r.some(c => String(c).trim()));
   }
 
+  // ---------- newly added --------
+  function makeGroupLink(groupToken) {
+    const base = location.href.replace(/helper\.html.*/i, "index.html");
+  
+    const csv = el("sheetUrl").value.trim();
+    const db = el("dbName").value.trim();
+  
+    const u = new URL(base);
+  
+    if (csv) u.searchParams.set("csv", csv);
+    if (db) u.searchParams.set("database", db);
+  
+    u.searchParams.set("focus", "1");
+    u.searchParams.set("group", groupToken);
+  
+    return u.toString();
+  }
   // ---------- group tree ----------
   function splitGroups(s) {
     return String(s || "").trim().split(/\s+/).filter(Boolean);
@@ -561,13 +578,22 @@
     [...selectedTokens].sort().forEach(t => {
       const chip = document.createElement("span");
       chip.className = "chip";
-      chip.textContent = t;
-
+    
+      // clickable link
+      const a = document.createElement("a");
+      a.href = makeGroupLink(t);
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = "👥" + t;
+      a.style.textDecoration = "none";
+      a.style.color = "inherit";
+    
       const x = document.createElement("button");
       x.textContent = "×";
       x.title = "remove";
       x.onclick = () => { selectedTokens.delete(t); syncInput(); renderPicker(); };
-
+    
+      chip.appendChild(a);
       chip.appendChild(x);
       c.appendChild(chip);
     });
